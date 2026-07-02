@@ -1,0 +1,361 @@
+@page "/instellingen"
+@using NWVGTijdrit.Data
+@using System.Text.Json
+@inject DataService DataService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Instellingen - NWVG Tijdrit</PageTitle>
+
+<h1><i class="bi bi-gear"></i> Instellingen</h1>
+<p class="lead">Beheer je data: maak backups, herstel data of reset de applicatie.</p>
+
+<div class="row">
+    @* Export sectie *@
+    <div class="col-md-6 mb-4">
+        <div class="card h-100 border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-download"></i> Data exporteren (Backup)</h5>
+            </div>
+            <div class="card-body">
+                <p>Download al je data als JSON-bestand. Bewaar dit bestand veilig om je data te kunnen herstellen.</p>
+
+                @if (exportStats != null)
+                {
+                    <div class="alert alert-info">
+                        <strong>Huidige data:</strong><br />
+                        <i class="bi bi-people"></i> @exportStats.AantalDeelnemers deelnemers<br />
+                        <i class="bi bi-stopwatch"></i> @exportStats.AantalTijdritten tijdritten<br />
+                        <i class="bi bi-list-ol"></i> @exportStats.AantalResultaten resultaten<br />
+                        <i class="bi bi-tags"></i> @exportStats.AantalCategorieen categorieën
+                    </div>
+                }
+
+                <button class="btn btn-success w-100" @onclick="ExporteerData" disabled="@isExporting">
+                    @if (isExporting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Exporteren...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-download me-2"></i>
+                        <span>Download backup</span>
+                    }
+                </button>
+
+                @if (exportSucces)
+                {
+                    <div class="alert alert-success mt-3 mb-0">
+                        <i class="bi bi-check-circle"></i> Backup gedownload!
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* Import sectie *@
+    <div class="col-md-6 mb-4">
+        <div class="card h-100 border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-upload"></i> Data importeren (Herstel)</h5>
+            </div>
+            <div class="card-body">
+                <p>Herstel data uit een eerder geëxporteerd JSON-bestand. <strong>Let op:</strong> dit overschrijft alle huidige data!</p>
+
+                <div class="mb-3">
+                    <label class="form-label">Selecteer backup bestand:</label>
+                    <InputFile OnChange="OnFileSelected" class="form-control" accept=".json" />
+                </div>
+
+                @if (selectedFileName != null)
+                {
+                    <div class="alert alert-warning">
+                        <strong>Geselecteerd:</strong> @selectedFileName<br />
+                        <small class="text-muted">Klik op "Importeer data" om te herstellen. Dit overschrijft alle huidige data!</small>
+                    </div>
+
+                    <button class="btn btn-primary w-100" @onclick="ImporteerData" disabled="@isImporting">
+                        @if (isImporting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Importeren...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-upload me-2"></i>
+                            <span>Importeer data</span>
+                        }
+                    </button>
+                }
+
+                @if (importSucces)
+                {
+                    <div class="alert alert-success mt-3 mb-0">
+                        <i class="bi bi-check-circle"></i> Data succesvol geïmporteerd!
+                    </div>
+                }
+
+                @if (importError != null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> @importError
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Reset sectie *@
+<div class="row">
+    <div class="col-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-trash"></i> Data resetten</h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <p class="mb-0">
+                            <strong>Waarschuwing:</strong> Dit verwijdert <strong>alle</strong> deelnemers, tijdritten, resultaten en categorieën permanent. 
+                            De seed data (voorbeelddata) wordt opnieuw geladen.
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-outline-danger" @onclick="ToonResetBevestiging">
+                            <i class="bi bi-trash"></i> Reset alle data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Reset bevestigingsmodal *@
+@if (toonResetModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-danger">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Alle data verwijderen?
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => toonResetModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <strong><i class="bi bi-exclamation-octagon-fill"></i> WAARSCHUWING!</strong><br />
+                        Je staat op het punt om ALLE data te verwijderen:
+                    </div>
+
+                    @if (exportStats != null)
+                    {
+                        <ul>
+                            <li><strong>@exportStats.AantalDeelnemers</strong> deelnemers</li>
+                            <li><strong>@exportStats.AantalTijdritten</strong> tijdritten</li>
+                            <li><strong>@exportStats.AantalResultaten</strong> resultaten</li>
+                            <li><strong>@exportStats.AantalCategorieen</strong> categorieën</li>
+                        </ul>
+                    }
+
+                    <p class="text-danger mb-0">
+                        <strong>Dit kan niet ongedaan worden gemaakt!</strong><br />
+                        Maak eerst een backup als je de data wilt bewaren.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => toonResetModal = false">
+                        <i class="bi bi-x-lg"></i> Annuleren
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ResetData">
+                        <i class="bi bi-trash"></i> Ja, verwijder alles
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ExportStats? exportStats;
+    private bool isExporting = false;
+    private bool exportSucces = false;
+    private bool isImporting = false;
+    private bool importSucces = false;
+    private string? importError = null;
+    private string? selectedFileName = null;
+    private string? selectedFileContent = null;
+    private bool toonResetModal = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LaadStats();
+    }
+
+    private async Task LaadStats()
+    {
+        var deelnemers = await DataService.GetDeelnemersAsync();
+        var tijdritten = await DataService.GetTijdrittenAsync();
+        var resultaten = await DataService.GetResultatenAsync();
+        var categorieen = await DataService.GetCategorieenAsync();
+
+        exportStats = new ExportStats
+        {
+            AantalDeelnemers = deelnemers.Count,
+            AantalTijdritten = tijdritten.Count,
+            AantalResultaten = resultaten.Count,
+            AantalCategorieen = categorieen.Count
+        };
+    }
+
+    private async Task ExporteerData()
+    {
+        isExporting = true;
+        exportSucces = false;
+        StateHasChanged();
+
+        try
+        {
+            var exportData = new ExportData
+            {
+                ExportDatum = DateTime.Now,
+                Versie = "1.0",
+                Deelnemers = await DataService.GetDeelnemersAsync(),
+                Tijdritten = await DataService.GetTijdrittenAsync(),
+                Resultaten = await DataService.GetResultatenAsync(),
+                Categorieen = await DataService.GetCategorieenAsync()
+            };
+
+            var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+
+            var fileName = $"nwvg-tijdrit-backup-{DateTime.Now:yyyy-MM-dd-HHmmss}.json";
+
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, json);
+
+            exportSucces = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Export fout: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+        }
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        importSucces = false;
+        importError = null;
+        selectedFileName = null;
+        selectedFileContent = null;
+
+        try
+        {
+            var file = e.File;
+            if (file != null)
+            {
+                selectedFileName = file.Name;
+
+                // Lees bestand (max 10MB)
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                selectedFileContent = await reader.ReadToEndAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            importError = $"Fout bij lezen bestand: {ex.Message}";
+        }
+    }
+
+    private async Task ImporteerData()
+    {
+        if (string.IsNullOrEmpty(selectedFileContent))
+        {
+            importError = "Geen bestand geselecteerd.";
+            return;
+        }
+
+        isImporting = true;
+        importSucces = false;
+        importError = null;
+        StateHasChanged();
+
+        try
+        {
+            var importData = JsonSerializer.Deserialize<ExportData>(selectedFileContent);
+
+            if (importData == null)
+            {
+                importError = "Ongeldig backup bestand.";
+                return;
+            }
+
+            // Importeer alle data
+            await DataService.ImportDataAsync(
+                importData.Deelnemers ?? new List<Deelnemer>(),
+                importData.Tijdritten ?? new List<Tijdrit>(),
+                importData.Resultaten ?? new List<TijdritResultaat>(),
+                importData.Categorieen ?? new List<string>()
+            );
+
+            importSucces = true;
+            selectedFileName = null;
+            selectedFileContent = null;
+
+            // Herlaad stats
+            await LaadStats();
+        }
+        catch (JsonException)
+        {
+            importError = "Ongeldig JSON formaat. Is dit wel een NWVG Tijdrit backup bestand?";
+        }
+        catch (Exception ex)
+        {
+            importError = $"Import fout: {ex.Message}";
+        }
+        finally
+        {
+            isImporting = false;
+        }
+    }
+
+    private void ToonResetBevestiging()
+    {
+        toonResetModal = true;
+    }
+
+    private async Task ResetData()
+    {
+        toonResetModal = false;
+
+        await DataService.ResetAllDataAsync();
+        await LaadStats();
+    }
+
+    private class ExportStats
+    {
+        public int AantalDeelnemers { get; set; }
+        public int AantalTijdritten { get; set; }
+        public int AantalResultaten { get; set; }
+        public int AantalCategorieen { get; set; }
+    }
+
+    private class ExportData
+    {
+        public DateTime ExportDatum { get; set; }
+        public string Versie { get; set; } = "1.0";
+        public List<Deelnemer>? Deelnemers { get; set; }
+        public List<Tijdrit>? Tijdritten { get; set; }
+        public List<TijdritResultaat>? Resultaten { get; set; }
+        public List<string>? Categorieen { get; set; }
+    }
+}

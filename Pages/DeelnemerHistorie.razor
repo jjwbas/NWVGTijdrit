@@ -1,0 +1,228 @@
+@page "/deelnemer/{DeelnemerId}/historie"
+@using NWVGTijdrit.Data
+@inject DataService DataService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Historie - @(deelnemer?.Naam ?? "Deelnemer")</PageTitle>
+
+@if (deelnemer == null)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Deelnemer niet gevonden.
+        <a href="deelnemers" class="alert-link">Terug naar deelnemers</a>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1><i class="bi bi-person-lines-fill"></i> @deelnemer.Naam</h1>
+            <p class="lead mb-0">
+                <span class="badge bg-secondary">@deelnemer.Categorie</span>
+                <span class="text-muted ms-2">Standaard @deelnemer.StandaardRondes ronde(s)</span>
+            </p>
+        </div>
+        <a href="deelnemers" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Terug naar deelnemers
+        </a>
+    </div>
+
+    @if (!resultaten.Any())
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Deze deelnemer heeft nog niet aan tijdritten deelgenomen.
+        </div>
+    }
+    else
+    {
+        @* Progressie grafiek *@
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Progressie - Gemiddelde snelheid per tijdrit</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="progressieGrafiek" style="height: 250px; width: 100%;"></canvas>
+            </div>
+        </div>
+
+        @* Resultaten tabel *@
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i> Alle tijdritten 
+                    <span class="badge bg-primary ms-2">@resultaten.Count tijdrit(ten)</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Datum</th>
+                                <th>Beschrijving</th>
+                                <th>Rondes</th>
+                                <th>Netto tijd</th>
+                                <th>Gem. snelheid</th>
+                                <th>Rondetijden (tijd / snelheid)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in resultaten)
+                            {
+                                var isCompleet = item.Resultaat.Passagetijden.Count >= item.Resultaat.AantalRondes;
+                                <tr class="@(!isCompleet ? "table-warning" : "")">
+                                    <td>
+                                        <strong>@item.Tijdrit.Datum.ToString("dd-MM-yyyy")</strong>
+                                    </td>
+                                    <td>@(item.Tijdrit.Beschrijving ?? "-")</td>
+                                    <td>@item.Resultaat.AantalRondes</td>
+                                    <td class="font-monospace">
+                                        @if (item.Resultaat.NettoTijd > TimeSpan.Zero)
+                                        {
+                                            <strong>@FormatTijd(item.Resultaat.NettoTijd)</strong>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">DNF</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (item.Resultaat.GemiddeldeSnelheid(item.Tijdrit.RondeLengteKm) > 0)
+                                        {
+                                            <strong>@item.Resultaat.GemiddeldeSnelheid(item.Tijdrit.RondeLengteKm).ToString("F1") km/u</strong>
+                                        }
+                                    </td>
+                                    <td class="font-monospace" style="font-size: 0.85rem;">
+                                        @for (int i = 0; i < item.Resultaat.Rondetijden.Count; i++)
+                                        {
+                                            var rondetijd = item.Resultaat.Rondetijden[i];
+
+                                            if (i > 0) { <span class="text-muted mx-1">|</span> }
+
+                                            @if (rondetijd == TimeSpan.Zero)
+                                            {
+                                                <span class="text-muted" title="Ronde @(i + 1) - geen tijd geregistreerd">-</span>
+                                            }
+                                            else
+                                            {
+                                                var snelheidRonde = BerekenRondeSnelheid(rondetijd, item.Tijdrit.RondeLengteKm);
+                                                <span title="Ronde @(i + 1)">
+                                                    @FormatTijdKort(rondetijd) 
+                                                    <small class="text-muted">(@snelheidRonde.ToString("F1"))</small>
+                                                </span>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string? DeelnemerId { get; set; }
+
+    private Deelnemer? deelnemer;
+    private List<(TijdritResultaat Resultaat, Tijdrit Tijdrit)> resultaten = new();
+
+    private bool grafiekGeladen = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Guid.TryParse(DeelnemerId, out var id))
+        {
+            var alleDeelnemers = await DataService.GetDeelnemersAsync();
+            deelnemer = alleDeelnemers.FirstOrDefault(d => d.Id == id);
+
+            if (deelnemer != null)
+            {
+                await LaadResultaten();
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Toon grafiek als we resultaten hebben en de grafiek nog niet geladen is
+        if (resultaten.Any() && !grafiekGeladen)
+        {
+            grafiekGeladen = true;
+            await ToonGrafiek();
+        }
+    }
+
+    private async Task LaadResultaten()
+    {
+        var alleResultaten = await DataService.GetResultatenAsync();
+        var alleTijdritten = await DataService.GetTijdrittenAsync();
+
+        resultaten = alleResultaten
+            .Where(r => r.DeelnemerId == deelnemer!.Id)
+            .Select(r => (
+                Resultaat: r,
+                Tijdrit: alleTijdritten.FirstOrDefault(t => t.Id == r.TijdritId)
+            ))
+            .Where(x => x.Tijdrit != null)
+            .OrderByDescending(x => x.Tijdrit!.Datum)
+            .Select(x => (x.Resultaat, x.Tijdrit!))
+            .ToList();
+    }
+
+    private async Task ToonGrafiek()
+    {
+        // Data voorbereiden voor de grafiek (chronologisch voor de grafiek)
+        var grafiekData = resultaten
+            .Where(r => r.Resultaat.GemiddeldeSnelheid(r.Tijdrit.RondeLengteKm) > 0)
+            .OrderBy(r => r.Tijdrit.Datum)
+            .Select(r => new
+            {
+                Datum = r.Tijdrit.Datum.ToString("dd-MM-yyyy"),
+                Snelheid = Math.Round(r.Resultaat.GemiddeldeSnelheid(r.Tijdrit.RondeLengteKm), 1)
+            })
+            .ToList();
+
+        if (grafiekData.Any())
+        {
+            var labels = grafiekData.Select(d => d.Datum).ToArray();
+            var data = grafiekData.Select(d => d.Snelheid).ToArray();
+
+            // Kleine vertraging om zeker te zijn dat DOM geladen is
+            await Task.Delay(100);
+
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("createProgressChart", labels, data);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Grafiek fout: {ex.Message}");
+            }
+        }
+    }
+
+    private double BerekenRondeSnelheid(TimeSpan rondetijd, double rondeLengteKm)
+    {
+        if (rondetijd.TotalHours <= 0) return 0;
+        return rondeLengteKm / rondetijd.TotalHours;
+    }
+
+    private string FormatTijd(TimeSpan tijd)
+    {
+        if (tijd.TotalHours >= 1)
+            return tijd.ToString(@"h\:mm\:ss\.f");
+        return tijd.ToString(@"mm\:ss\.f");
+    }
+
+    private string FormatTijdKort(TimeSpan tijd)
+    {
+        if (tijd.TotalMinutes >= 10)
+            return tijd.ToString(@"mm\:ss");
+        return tijd.ToString(@"m\:ss");
+    }
+}

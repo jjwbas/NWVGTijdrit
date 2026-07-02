@@ -1,0 +1,654 @@
+@page "/tijdritten"
+@page "/tijdritten/{TijdritIdParam}"
+@using NWVGTijdrit.Data
+@inject DataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>Tijdritten - NWVG Tijdrit</PageTitle>
+
+<h1><i class="bi bi-stopwatch"></i> Tijdritten</h1>
+
+@if (huidigeTijdrit == null)
+{
+    @* OVERZICHT: Lijst van tijdritten + nieuwe aanmaken *@
+    <p class="lead">Beheer tijdritten en voer passagetijden in.</p>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Nieuwe tijdrit starten</h5>
+        </div>
+        <div class="card-body">
+            <EditForm Model="@nieuweTijdrit" OnValidSubmit="@NieuweTijdritAanmaken">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Datum</label>
+                        <InputDate class="form-control" @bind-Value="nieuweTijdrit.Datum" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Rondelengte (km)</label>
+                        <InputNumber class="form-control" @bind-Value="nieuweTijdrit.RondeLengteKm" step="0.1" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Beschrijving (optioneel)</label>
+                        <InputText class="form-control" @bind-Value="nieuweTijdrit.Beschrijving" placeholder="Bijv. Clubkampioenschap" />
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-flag"></i> Start nieuwe tijdrit
+                        </button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Eerdere tijdritten</h5>
+        </div>
+        <div class="card-body">
+            @if (!tijdritten.Any())
+            {
+                <div class="alert alert-info mb-0">
+                    Nog geen tijdritten. Start hierboven je eerste tijdrit!
+                </div>
+            }
+            else
+            {
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Datum</th>
+                            <th>Beschrijving</th>
+                            <th>Rondelengte</th>
+                            <th>Deelnemers</th>
+                            <th style="width: 200px;">Acties</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tijdrit in tijdritten.OrderByDescending(t => t.Datum))
+                        {
+                            var aantalDeelnemers = resultatenPerTijdrit.GetValueOrDefault(tijdrit.Id, 0);
+                            <tr>
+                                <td>@tijdrit.Datum.ToString("dd-MM-yyyy")</td>
+                                <td>@(tijdrit.Beschrijving ?? "-")</td>
+                                <td>@tijdrit.RondeLengteKm km</td>
+                                <td>@aantalDeelnemers renner(s)</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary me-1" @onclick="() => ToonWijzigModal(tijdrit)">
+                                        <i class="bi bi-pencil"></i> Wijzigen
+                                    </button>
+                                    <a href="uitslagen/@tijdrit.Id" class="btn btn-sm btn-outline-success me-1">
+                                        <i class="bi bi-trophy"></i> Uitslagen
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ToonVerwijderBevestiging(tijdrit)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    @* Bevestigingsdialoog voor verwijderen *@
+    @if (teVerwijderenTijdrit != null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-danger">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Tijdrit verwijderen?
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="AnnuleerVerwijderen"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger">
+                            <strong><i class="bi bi-exclamation-octagon-fill"></i> LET OP!</strong><br />
+                            Je staat op het punt om de volgende tijdrit <strong>permanent</strong> te verwijderen:
+                        </div>
+
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <strong>@teVerwijderenTijdrit.Datum.ToString("dd MMMM yyyy")</strong>
+                                @if (!string.IsNullOrEmpty(teVerwijderenTijdrit.Beschrijving))
+                                {
+                                    <span> - @teVerwijderenTijdrit.Beschrijving</span>
+                                }
+                                <br />
+                                <small class="text-muted">
+                                    @resultatenPerTijdrit.GetValueOrDefault(teVerwijderenTijdrit.Id, 0) deelnemer(s) met resultaten
+                                </small>
+                            </div>
+                        </div>
+
+                        <p class="text-danger mb-0">
+                            <i class="bi bi-trash"></i> 
+                            Alle resultaten en passagetijden worden ook verwijderd. 
+                            <strong>Dit kan niet ongedaan worden gemaakt!</strong>
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="AnnuleerVerwijderen">
+                            <i class="bi bi-x-lg"></i> Annuleren
+                        </button>
+                        <button type="button" class="btn btn-danger" @onclick="BevestigVerwijderen">
+                            <i class="bi bi-trash"></i> Ja, verwijder permanent
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Modal voor tijdrit wijzigen *@
+    @if (teWijzigenTijdrit != null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-pencil me-2"></i>
+                            Tijdrit wijzigen
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="AnnuleerWijzigen"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Datum</label>
+                            <InputDate class="form-control" @bind-Value="teWijzigenTijdrit.Datum" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Beschrijving (optioneel)</label>
+                            <InputText class="form-control" @bind-Value="teWijzigenTijdrit.Beschrijving" placeholder="Bijv. Clubkampioenschap" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rondelengte (km)</label>
+                            <InputNumber class="form-control" @bind-Value="teWijzigenTijdrit.RondeLengteKm" step="0.1" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="AnnuleerWijzigen">
+                            <i class="bi bi-x-lg"></i> Annuleren
+                        </button>
+                        <button type="button" class="btn btn-primary" @onclick="OpslaanWijzigingen">
+                            <i class="bi bi-check-lg"></i> Opslaan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    @* INVOER MODUS: Werken met een specifieke tijdrit *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <span class="badge bg-primary fs-6 me-2">@huidigeTijdrit.Datum.ToString("dd-MM-yyyy")</span>
+            <span class="text-muted">@(huidigeTijdrit.Beschrijving ?? "Tijdrit")</span>
+            <span class="badge bg-secondary ms-2">@huidigeTijdrit.RondeLengteKm km/ronde</span>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="SluitTijdrit">
+            <i class="bi bi-arrow-left"></i> Terug naar overzicht
+        </button>
+    </div>
+
+    <div class="row">
+        @* Linker kolom: Deelnemers toevoegen aan startlijst *@
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Deelnemer toevoegen aan startlijst</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">Selecteer deelnemer</label>
+                        <select class="form-select" value="@geselecteerdeDeelnemerId" @onchange="OnDeelnemerGeselecteerd">
+                            <option value="@Guid.Empty">-- Kies een renner --</option>
+                            @foreach (var d in beschikbareDeelnemers)
+                            {
+                                <option value="@d.Id">@d.Naam (@d.Categorie)</option>
+                            }
+                        </select>
+                    </div>
+
+                    @if (geselecteerdeDeelnemerId != Guid.Empty)
+                    {
+                        <div class="mb-2">
+                            <label class="form-label">Aantal rondes</label>
+                            <InputNumber class="form-control" @bind-Value="aantalRondesNieuweDeelnemer" min="1" max="6" />
+                        </div>
+                    }
+
+                    <button class="btn btn-success w-100" @onclick="VoegDeelnemerToe" 
+                            disabled="@(geselecteerdeDeelnemerId == Guid.Empty)">
+                        Toevoegen aan startlijst
+                    </button>
+                </div>
+            </div>
+
+            @* Stopwatch simulatie *@
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h6 class="mb-0"><i class="bi bi-stopwatch"></i> Stopwatch</h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="display-4 font-monospace mb-3">
+                        @FormatTijd(stopwatchTijd)
+                    </div>
+                    <div class="btn-group w-100">
+                        @if (!stopwatchLoopt)
+                        {
+                            <button class="btn btn-success" @onclick="StartStopwatch">
+                                <i class="bi bi-play-fill"></i> Start
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-warning" @onclick="PauzeStopwatch">
+                                <i class="bi bi-pause-fill"></i> Pauze
+                            </button>
+                        }
+                        <button class="btn btn-danger" @onclick="ResetStopwatch">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </button>
+                    </div>
+                    <div class="form-text mt-2">
+                        Of voer handmatig een tijd in bij de passage
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Rechter kolom: Startlijst met passage-invoer *@
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-list-ol"></i> Startlijst (@resultaten.Count deelnemers)</h6>
+                </div>
+                <div class="card-body p-0">
+                    @if (!resultaten.Any())
+                    {
+                        <div class="alert alert-info m-3">
+                            Voeg deelnemers toe aan de startlijst via het formulier links.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 40px;">#</th>
+                                        <th>Naam</th>
+                                        <th style="width: 80px;">Start</th>
+                                        <th>Passages</th>
+                                        <th style="width: 100px;">Netto</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var resultaat in resultaten.OrderBy(r => r.Startvolgorde))
+                                    {
+                                        var deelnemer = alleDeelnemers.FirstOrDefault(d => d.Id == resultaat.DeelnemerId);
+                                        var isCompleet = resultaat.Passagetijden.Count >= resultaat.AantalRondes;
+                                        <tr class="@(isCompleet ? "table-success" : "")">
+                                            <td><strong>@resultaat.Startvolgorde</strong></td>
+                                            <td>
+                                                @(deelnemer?.Naam ?? "?")
+                                                <br /><small class="text-muted">@(deelnemer?.Categorie) - @resultaat.AantalRondes ronde(s)</small>
+                                            </td>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm font-monospace" 
+                                                       value="@FormatTijd(resultaat.Starttijd)"
+                                                       @onchange="e => UpdateStarttijd(resultaat, e.Value?.ToString())"
+                                                       style="width: 80px;" />
+                                            </td>
+                                            <td>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    @for (int i = 0; i < resultaat.AantalRondes; i++)
+                                                    {
+                                                        var rondeNr = i;
+                                                        var heeftPassage = i < resultaat.Passagetijden.Count;
+                                                        <div class="input-group input-group-sm" style="width: 110px;">
+                                                            <span class="input-group-text p-1">@(i + 1)</span>
+                                                            @if (heeftPassage)
+                                                            {
+                                                                <input type="text" class="form-control font-monospace p-1" 
+                                                                       value="@FormatTijd(resultaat.Passagetijden[i])"
+                                                                       @onchange="e => UpdatePassage(resultaat, rondeNr, e.Value?.ToString())"
+                                                                       style="font-size: 0.8rem;" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <button class="btn btn-outline-primary btn-sm" 
+                                                                        @onclick="() => RegistreerPassage(resultaat)"
+                                                                        title="Klik om huidige stopwatch-tijd te registreren">
+                                                                    <i class="bi bi-geo-alt"></i>
+                                                                </button>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </td>
+                                            <td class="font-monospace">
+                                                @if (resultaat.NettoTijd > TimeSpan.Zero)
+                                                {
+                                                    <strong>@FormatTijd(resultaat.NettoTijd)</strong>
+                                                }
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-danger" 
+                                                        @onclick="() => VerwijderResultaat(resultaat)" title="Verwijderen">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? TijdritIdParam { get; set; }
+
+    // Overzicht data
+    private List<Tijdrit> tijdritten = new();
+    private Dictionary<Guid, int> resultatenPerTijdrit = new();
+    private Tijdrit nieuweTijdrit = new();
+
+    // Verwijder bevestiging
+    private Tijdrit? teVerwijderenTijdrit = null;
+
+    // Wijzig modal
+    private Tijdrit? teWijzigenTijdrit = null;
+
+    // Invoer modus data
+    private Tijdrit? huidigeTijdrit;
+    private List<TijdritResultaat> resultaten = new();
+    private List<Deelnemer> alleDeelnemers = new();
+
+    // Formulier voor nieuwe deelnemer toevoegen
+    private Guid geselecteerdeDeelnemerId = Guid.Empty;
+    private int aantalRondesNieuweDeelnemer = 2;
+
+    // Beschikbare deelnemers (nog niet in startlijst) - op categorie (jongste eerst), dan op naam
+    private IEnumerable<Deelnemer> beschikbareDeelnemers => 
+        alleDeelnemers.Where(d => !resultaten.Any(r => r.DeelnemerId == d.Id))
+                      .OrderBy(d => d.Categorie)
+                      .ThenBy(d => d.Naam);
+
+    // Stopwatch
+    private TimeSpan stopwatchTijd = TimeSpan.Zero;
+    private bool stopwatchLoopt = false;
+    private System.Threading.Timer? stopwatchTimer;
+    private DateTime stopwatchStartMoment;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LaadData();
+
+        // Als er een tijdrit ID in de URL staat, open die
+        if (Guid.TryParse(TijdritIdParam, out var tijdritId))
+        {
+            var tijdrit = tijdritten.FirstOrDefault(t => t.Id == tijdritId);
+            if (tijdrit != null)
+            {
+                await OpenTijdritAsync(tijdrit);
+            }
+        }
+    }
+
+    private async Task LaadData()
+    {
+        tijdritten = await DataService.GetTijdrittenAsync();
+        alleDeelnemers = await DataService.GetDeelnemersAsync();
+
+        // Tel resultaten per tijdrit
+        var alleResultaten = await DataService.GetResultatenAsync();
+        resultatenPerTijdrit = alleResultaten
+            .GroupBy(r => r.TijdritId)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private async Task NieuweTijdritAanmaken()
+    {
+        await DataService.SaveTijdritAsync(nieuweTijdrit);
+        await OpenTijdritAsync(nieuweTijdrit);
+        nieuweTijdrit = new Tijdrit();
+    }
+
+    private void OpenTijdrit(Tijdrit tijdrit)
+    {
+        Navigation.NavigateTo($"/tijdritten/{tijdrit.Id}");
+    }
+
+    private async Task OpenTijdritAsync(Tijdrit tijdrit)
+    {
+        huidigeTijdrit = tijdrit;
+        resultaten = await DataService.GetResultatenVoorTijdritAsync(tijdrit.Id);
+    }
+
+    private void SluitTijdrit()
+    {
+        StopStopwatchTimer();
+        huidigeTijdrit = null;
+        resultaten.Clear();
+        Navigation.NavigateTo("/tijdritten");
+    }
+
+    private void ToonVerwijderBevestiging(Tijdrit tijdrit)
+    {
+        teVerwijderenTijdrit = tijdrit;
+    }
+
+    private void AnnuleerVerwijderen()
+    {
+        teVerwijderenTijdrit = null;
+    }
+
+    private async Task BevestigVerwijderen()
+    {
+        if (teVerwijderenTijdrit != null)
+        {
+            await DataService.DeleteTijdritAsync(teVerwijderenTijdrit.Id);
+            teVerwijderenTijdrit = null;
+            await LaadData();
+        }
+    }
+
+    private void ToonWijzigModal(Tijdrit tijdrit)
+    {
+        // Maak een kopie zodat we kunnen annuleren zonder wijzigingen
+        teWijzigenTijdrit = new Tijdrit
+        {
+            Id = tijdrit.Id,
+            Datum = tijdrit.Datum,
+            Beschrijving = tijdrit.Beschrijving,
+            RondeLengteKm = tijdrit.RondeLengteKm
+        };
+    }
+
+    private void AnnuleerWijzigen()
+    {
+        teWijzigenTijdrit = null;
+    }
+
+    private async Task OpslaanWijzigingen()
+    {
+        if (teWijzigenTijdrit != null)
+        {
+            await DataService.SaveTijdritAsync(teWijzigenTijdrit);
+            teWijzigenTijdrit = null;
+            await LaadData();
+        }
+    }
+
+    private void OnDeelnemerGeselecteerd(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+        {
+            geselecteerdeDeelnemerId = id;
+
+            // Zet aantal rondes automatisch op de standaard van de deelnemer
+            var deelnemer = alleDeelnemers.FirstOrDefault(d => d.Id == id);
+            if (deelnemer != null)
+            {
+                aantalRondesNieuweDeelnemer = deelnemer.StandaardRondes;
+            }
+        }
+        else
+        {
+            geselecteerdeDeelnemerId = Guid.Empty;
+        }
+    }
+
+    private async Task VoegDeelnemerToe()
+    {
+        if (huidigeTijdrit == null || geselecteerdeDeelnemerId == Guid.Empty) return;
+
+        var deelnemer = alleDeelnemers.FirstOrDefault(d => d.Id == geselecteerdeDeelnemerId);
+        if (deelnemer == null) return;
+
+        // Bepaal volgende startvolgorde
+        var volgendeNummer = resultaten.Any() ? resultaten.Max(r => r.Startvolgorde) + 1 : 1;
+
+        // Bepaal starttijd (interval van 30 seconden)
+        var starttijd = TimeSpan.FromSeconds((volgendeNummer - 1) * 30);
+
+        var resultaat = new TijdritResultaat
+        {
+            TijdritId = huidigeTijdrit.Id,
+            DeelnemerId = deelnemer.Id,
+            Startvolgorde = volgendeNummer,
+            AantalRondes = aantalRondesNieuweDeelnemer > 0 ? aantalRondesNieuweDeelnemer : deelnemer.StandaardRondes,
+            Starttijd = starttijd
+        };
+
+        await DataService.SaveResultaatAsync(resultaat);
+        resultaten.Add(resultaat);
+
+        // Reset formulier
+        geselecteerdeDeelnemerId = Guid.Empty;
+        aantalRondesNieuweDeelnemer = 2;
+    }
+
+    private async Task VerwijderResultaat(TijdritResultaat resultaat)
+    {
+        await DataService.DeleteResultaatAsync(resultaat.Id);
+        resultaten.Remove(resultaat);
+    }
+
+    private async Task UpdateStarttijd(TijdritResultaat resultaat, string? waarde)
+    {
+        if (TryParseTijd(waarde, out var tijd))
+        {
+            resultaat.Starttijd = tijd;
+            await DataService.SaveResultaatAsync(resultaat);
+        }
+    }
+
+    private async Task UpdatePassage(TijdritResultaat resultaat, int rondeNr, string? waarde)
+    {
+        if (TryParseTijd(waarde, out var tijd))
+        {
+            while (resultaat.Passagetijden.Count <= rondeNr)
+            {
+                resultaat.Passagetijden.Add(TimeSpan.Zero);
+            }
+            resultaat.Passagetijden[rondeNr] = tijd;
+            await DataService.SaveResultaatAsync(resultaat);
+        }
+    }
+
+    private async Task RegistreerPassage(TijdritResultaat resultaat)
+    {
+        // Gebruik huidige stopwatch-tijd
+        resultaat.Passagetijden.Add(stopwatchTijd);
+        await DataService.SaveResultaatAsync(resultaat);
+    }
+
+    // Stopwatch functies
+    private void StartStopwatch()
+    {
+        stopwatchLoopt = true;
+        stopwatchStartMoment = DateTime.Now - stopwatchTijd;
+        stopwatchTimer = new System.Threading.Timer(
+            _ => InvokeAsync(() => { 
+                stopwatchTijd = DateTime.Now - stopwatchStartMoment; 
+                StateHasChanged(); 
+            }),
+            null,
+            0,
+            100 // Update elke 100ms
+        );
+    }
+
+    private void PauzeStopwatch()
+    {
+        stopwatchLoopt = false;
+        StopStopwatchTimer();
+    }
+
+    private void ResetStopwatch()
+    {
+        stopwatchLoopt = false;
+        stopwatchTijd = TimeSpan.Zero;
+        StopStopwatchTimer();
+    }
+
+    private void StopStopwatchTimer()
+    {
+        stopwatchTimer?.Dispose();
+        stopwatchTimer = null;
+    }
+
+    // Helper functies
+    private string FormatTijd(TimeSpan tijd)
+    {
+        return tijd.TotalHours >= 1 
+            ? tijd.ToString(@"h\:mm\:ss\.f")
+            : tijd.ToString(@"mm\:ss\.f");
+    }
+
+    private bool TryParseTijd(string? waarde, out TimeSpan tijd)
+    {
+        tijd = TimeSpan.Zero;
+        if (string.IsNullOrWhiteSpace(waarde)) return false;
+
+        // Probeer verschillende formaten: "mm:ss.f", "mm:ss", "m:ss"
+        waarde = waarde.Trim();
+
+        if (TimeSpan.TryParseExact(waarde, new[] { @"mm\:ss\.f", @"mm\:ss\.ff", @"mm\:ss", @"m\:ss\.f", @"m\:ss", @"h\:mm\:ss\.f", @"h\:mm\:ss" }, null, out tijd))
+        {
+            return true;
+        }
+
+        // Probeer als seconden
+        if (double.TryParse(waarde, out var seconden))
+        {
+            tijd = TimeSpan.FromSeconds(seconden);
+            return true;
+        }
+
+        return false;
+    }
+
+    public void Dispose()
+    {
+        StopStopwatchTimer();
+    }
+}

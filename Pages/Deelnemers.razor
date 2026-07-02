@@ -1,0 +1,465 @@
+@page "/deelnemers"
+@using NWVGTijdrit.Data
+@inject DataService DataService
+
+<PageTitle>Deelnemers - NWVG Tijdrit</PageTitle>
+
+<h1><i class="bi bi-people-fill"></i> Deelnemers</h1>
+<p class="lead">Beheer de renners die kunnen deelnemen aan tijdritten.</p>
+
+<div class="row">
+    <div class="col-lg-8">
+        @* Formulier voor nieuwe deelnemer of bewerken *@
+        <div class="card mb-4 @(isBewerken ? "border-primary" : "")" id="deelnemerForm">
+            <div class="card-header @(isBewerken ? "bg-primary text-white" : "")">
+                <h5 class="mb-0">
+                    @if (isBewerken)
+                    {
+                        <i class="bi bi-pencil me-2"></i><span>Deelnemer bewerken: @huidigeDeelnemer.Naam</span>
+                    }
+                    else
+                    {
+                        <span>Nieuwe deelnemer toevoegen</span>
+                    }
+                </h5>
+            </div>
+            <div class="card-body">
+                <EditForm Model="@huidigeDeelnemer" OnValidSubmit="@OpslaanDeelnemer">
+                    <DataAnnotationsValidator />
+
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label">Naam</label>
+                            <InputText class="form-control" @bind-Value="huidigeDeelnemer.Naam" placeholder="Bijv. Jan Janssen" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Categorie</label>
+                            <select class="form-select" @bind="huidigeDeelnemer.Categorie">
+                                <option value="">-- Selecteer categorie --</option>
+                                @foreach (var cat in categorieen)
+                                {
+                                    <option value="@cat">@cat</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Standaard rondes</label>
+                            <InputNumber class="form-control" @bind-Value="huidigeDeelnemer.StandaardRondes" min="1" max="6" />
+                            <div class="form-text">1-6 rondes</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            @if (isBewerken)
+                            {
+                                <i class="bi bi-floppy"></i> <span>Opslaan</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-plus-lg"></i> <span>Toevoegen</span>
+                            }
+                        </button>
+                        @if (isBewerken)
+                        {
+                            <button type="button" class="btn btn-secondary ms-2" @onclick="Annuleren">Annuleren</button>
+                        }
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+
+        @* Lijst van deelnemers *@
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Deelnemerslijst (@deelnemers.Count renners)</h5>
+                @if (deelnemers.Any())
+                {
+                    <div>
+                        <label class="me-2">Filter:</label>
+                        <select class="form-select form-select-sm d-inline-block w-auto" @bind="filterCategorie">
+                            <option value="">Alle categorieen</option>
+                            @foreach (var cat in categorieen)
+                            {
+                                <option value="@cat">@cat</option>
+                            }
+                        </select>
+                    </div>
+                }
+            </div>
+            <div class="card-body">
+                @if (isLaden)
+                {
+                    <p><em>Laden...</em></p>
+                }
+                else if (!deelnemers.Any())
+                {
+                    <div class="alert alert-info">
+                        <strong>Nog geen deelnemers!</strong> Voeg hierboven je eerste renner toe.
+                    </div>
+                }
+                else
+                {
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th role="button" @onclick='() => WisselSortering("naam")' class="user-select-none">
+                                    Naam
+                                    @if (sorteerKolom == "naam")
+                                    {
+                                        <i class="bi bi-@(sorteerOplopend ? "sort-alpha-down" : "sort-alpha-up") ms-1"></i>
+                                    }
+                                </th>
+                                <th role="button" @onclick='() => WisselSortering("categorie")' class="user-select-none">
+                                    Categorie
+                                    @if (sorteerKolom == "categorie")
+                                    {
+                                        <i class="bi bi-@(sorteerOplopend ? "sort-down" : "sort-up") ms-1"></i>
+                                    }
+                                </th>
+                                <th role="button" @onclick='() => WisselSortering("rondes")' class="user-select-none">
+                                    Standaard rondes
+                                    @if (sorteerKolom == "rondes")
+                                    {
+                                        <i class="bi bi-@(sorteerOplopend ? "sort-numeric-down" : "sort-numeric-up") ms-1"></i>
+                                    }
+                                </th>
+                                <th role="button" @onclick='() => WisselSortering("ritten")' class="user-select-none">
+                                    Ritten
+                                    @if (sorteerKolom == "ritten")
+                                    {
+                                        <i class="bi bi-@(sorteerOplopend ? "sort-numeric-down" : "sort-numeric-up") ms-1"></i>
+                                    }
+                                </th>
+                                <th style="width: 170px;">Acties</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var deelnemer in GefilterdeDeelnemers)
+                            {
+                                var aantalRitten = rittenPerDeelnemer.GetValueOrDefault(deelnemer.Id, 0);
+                                <tr>
+                                    <td>@deelnemer.Naam</td>
+                                    <td><span class="badge bg-secondary">@deelnemer.Categorie</span></td>
+                                    <td>@deelnemer.StandaardRondes ronde(s)</td>
+                                    <td>
+                                        @if (aantalRitten > 0)
+                                        {
+                                            <span class="badge bg-success">@aantalRitten</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">0</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <a href="deelnemer/@deelnemer.Id/historie" class="btn btn-sm btn-outline-success me-1" title="Historie">
+                                            <i class="bi bi-clock-history"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => Bewerken(deelnemer)" title="Bewerken">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ToonVerwijderBevestiging(deelnemer)" title="Verwijderen">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        @* Categorie beheer *@
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-tags"></i> Categorieen beheren</h5>
+            </div>
+            <div class="card-body">
+                @* Nieuwe categorie toevoegen *@
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" placeholder="Nieuwe categorie..." 
+                           @bind="nieuweCategorieNaam" @bind:event="oninput" />
+                    <button class="btn btn-success" type="button" @onclick="VoegCategorieToe"
+                            disabled="@string.IsNullOrWhiteSpace(nieuweCategorieNaam)">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+
+                @if (categorieFoutmelding != null)
+                {
+                    <div class="alert alert-danger alert-dismissible py-2">
+                        @categorieFoutmelding
+                        <button type="button" class="btn-close" @onclick="() => categorieFoutmelding = null"></button>
+                    </div>
+                }
+
+                @if (!categorieen.Any())
+                {
+                    <p class="text-muted">Nog geen categorieen. Voeg er een toe!</p>
+                }
+                else
+                {
+                    <ul class="list-group">
+                        @foreach (var cat in categorieen)
+                        {
+                            var aantalDeelnemers = deelnemersPerCategorie.GetValueOrDefault(cat, 0);
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span>@cat</span>
+                                    <span class="badge bg-primary rounded-pill ms-2">@aantalDeelnemers</span>
+                                </div>
+                                @if (aantalDeelnemers == 0)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => VerwijderCategorie(cat)" title="Verwijderen">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary" disabled title="Kan niet verwijderen: er zijn deelnemers">
+                                        <i class="bi bi-lock"></i>
+                                    </button>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+            <div class="card-footer text-muted small">
+                <i class="bi bi-info-circle"></i> Categorieen met deelnemers kunnen niet worden verwijderd.
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Bevestigingsdialoog voor verwijderen *@
+@if (teVerwijderenDeelnemer != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-danger">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Deelnemer verwijderen?
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="AnnuleerVerwijderen"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Weet je zeker dat je de volgende deelnemer wilt verwijderen?</p>
+
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <strong>@teVerwijderenDeelnemer.Naam</strong><br />
+                            <small class="text-muted">
+                                @teVerwijderenDeelnemer.Categorie - @teVerwijderenDeelnemer.StandaardRondes ronde(s)
+                            </small>
+                        </div>
+                    </div>
+
+                    <p class="text-warning mb-0">
+                        <i class="bi bi-info-circle"></i> 
+                        Eventuele tijdrit-resultaten van deze deelnemer blijven behouden.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="AnnuleerVerwijderen">
+                        <i class="bi bi-x-lg"></i> Annuleren
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="BevestigVerwijderen">
+                        <i class="bi bi-trash"></i> Ja, verwijderen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // Lijst van alle deelnemers
+    private List<Deelnemer> deelnemers = new();
+
+    // De deelnemer die we aan het bewerken/toevoegen zijn
+    private Deelnemer huidigeDeelnemer = new();
+
+    // Zijn we aan het bewerken of toevoegen?
+    private bool isBewerken = false;
+
+    // Verwijder bevestiging
+    private Deelnemer? teVerwijderenDeelnemer = null;
+
+    // Laden indicator
+    private bool isLaden = true;
+
+    // Filter voor de tabel
+    private string filterCategorie = "";
+
+    // Categorieen
+    private List<string> categorieen = new();
+    private Dictionary<string, int> deelnemersPerCategorie = new();
+    private Dictionary<Guid, int> rittenPerDeelnemer = new();
+    private string nieuweCategorieNaam = "";
+    private string? categorieFoutmelding = null;
+
+    // Sortering
+    private string sorteerKolom = "categorie"; // Standaard sorteren op categorie
+    private bool sorteerOplopend = true;
+
+    // Gefilterde en gesorteerde lijst voor weergave
+    private IEnumerable<Deelnemer> GefilterdeDeelnemers
+    {
+        get
+        {
+            var gefilterd = string.IsNullOrEmpty(filterCategorie)
+                ? deelnemers
+                : deelnemers.Where(d => d.Categorie == filterCategorie);
+
+            return sorteerKolom switch
+            {
+                "naam" => sorteerOplopend
+                    ? gefilterd.OrderBy(d => d.Naam)
+                    : gefilterd.OrderByDescending(d => d.Naam),
+                "categorie" => sorteerOplopend
+                    ? gefilterd.OrderBy(d => d.Categorie).ThenBy(d => d.Naam)
+                    : gefilterd.OrderByDescending(d => d.Categorie).ThenBy(d => d.Naam),
+                "rondes" => sorteerOplopend
+                    ? gefilterd.OrderBy(d => d.StandaardRondes).ThenBy(d => d.Naam)
+                    : gefilterd.OrderByDescending(d => d.StandaardRondes).ThenBy(d => d.Naam),
+                "ritten" => sorteerOplopend
+                    ? gefilterd.OrderBy(d => rittenPerDeelnemer.GetValueOrDefault(d.Id, 0)).ThenBy(d => d.Naam)
+                    : gefilterd.OrderByDescending(d => rittenPerDeelnemer.GetValueOrDefault(d.Id, 0)).ThenBy(d => d.Naam),
+                _ => gefilterd.OrderBy(d => d.Naam)
+            };
+        }
+    }
+
+    private void WisselSortering(string kolom)
+    {
+        if (sorteerKolom == kolom)
+        {
+            // Zelfde kolom: wissel richting
+            sorteerOplopend = !sorteerOplopend;
+        }
+        else
+        {
+            // Andere kolom: sorteer oplopend
+            sorteerKolom = kolom;
+            sorteerOplopend = true;
+        }
+    }
+
+    // Wordt aangeroepen als de pagina laadt
+    protected override async Task OnInitializedAsync()
+    {
+        await LaadData();
+        isLaden = false;
+    }
+
+    private async Task LaadData()
+    {
+        deelnemers = await DataService.GetDeelnemersAsync();
+        categorieen = await DataService.GetCategorieenAsync();
+        deelnemersPerCategorie = await DataService.GetDeelnemersPerCategorieAsync();
+
+        // Tel aantal ritten per deelnemer
+        var alleResultaten = await DataService.GetResultatenAsync();
+        rittenPerDeelnemer = alleResultaten
+            .GroupBy(r => r.DeelnemerId)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private async Task OpslaanDeelnemer()
+    {
+        // Validatie
+        if (string.IsNullOrWhiteSpace(huidigeDeelnemer.Naam))
+            return;
+
+        if (string.IsNullOrWhiteSpace(huidigeDeelnemer.Categorie))
+            return;
+
+        // Opslaan in "database"
+        await DataService.SaveDeelnemerAsync(huidigeDeelnemer);
+
+        // Lijst vernieuwen en formulier resetten
+        await LaadData();
+        huidigeDeelnemer = new Deelnemer();
+        isBewerken = false;
+    }
+
+    private void Bewerken(Deelnemer deelnemer)
+    {
+        // Maak een kopie zodat we wijzigingen kunnen annuleren
+        huidigeDeelnemer = new Deelnemer
+        {
+            Id = deelnemer.Id,
+            Naam = deelnemer.Naam,
+            Categorie = deelnemer.Categorie,
+            StandaardRondes = deelnemer.StandaardRondes
+        };
+        isBewerken = true;
+    }
+
+    private void Annuleren()
+    {
+        huidigeDeelnemer = new Deelnemer();
+        isBewerken = false;
+    }
+
+    private void ToonVerwijderBevestiging(Deelnemer deelnemer)
+    {
+        teVerwijderenDeelnemer = deelnemer;
+    }
+
+    private void AnnuleerVerwijderen()
+    {
+        teVerwijderenDeelnemer = null;
+    }
+
+    private async Task BevestigVerwijderen()
+    {
+        if (teVerwijderenDeelnemer != null)
+        {
+            await DataService.DeleteDeelnemerAsync(teVerwijderenDeelnemer.Id);
+            teVerwijderenDeelnemer = null;
+            await LaadData();
+        }
+    }
+
+    private async Task VoegCategorieToe()
+    {
+        if (string.IsNullOrWhiteSpace(nieuweCategorieNaam))
+            return;
+
+        // Check of categorie al bestaat
+        if (categorieen.Contains(nieuweCategorieNaam, StringComparer.OrdinalIgnoreCase))
+        {
+            categorieFoutmelding = "Deze categorie bestaat al!";
+            return;
+        }
+
+        await DataService.AddCategorieAsync(nieuweCategorieNaam);
+        nieuweCategorieNaam = "";
+        categorieFoutmelding = null;
+        await LaadData();
+    }
+
+    private async Task VerwijderCategorie(string categorie)
+    {
+        var result = await DataService.DeleteCategorieAsync(categorie);
+        if (!result)
+        {
+            categorieFoutmelding = $"Kan '{categorie}' niet verwijderen: er zijn nog deelnemers.";
+        }
+        else
+        {
+            categorieFoutmelding = null;
+            await LaadData();
+        }
+    }
+}

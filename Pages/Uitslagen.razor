@@ -1,0 +1,345 @@
+@page "/uitslagen"
+@page "/uitslagen/{TijdritIdParam}"
+@using NWVGTijdrit.Data
+@inject DataService DataService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Uitslagen - NWVG Tijdrit</PageTitle>
+
+<h1><i class="bi bi-trophy"></i> Uitslagen</h1>
+
+@if (huidigeTijdrit == null)
+{
+    @* Selecteer een tijdrit *@
+    <p class="lead">Selecteer een tijdrit om de uitslagen te bekijken.</p>
+
+    @if (!tijdritten.Any())
+    {
+        <div class="alert alert-info">
+            <strong>Nog geen tijdritten!</strong> 
+            <a href="tijdritten">Start eerst een tijdrit</a> en voer resultaten in.
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var tijdrit in tijdritten.OrderByDescending(t => t.Datum))
+            {
+                var aantalDeelnemers = resultatenPerTijdrit.GetValueOrDefault(tijdrit.Id, 0);
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">@tijdrit.Datum.ToString("dd MMMM yyyy")</h5>
+                            <p class="card-text">
+                                @if (!string.IsNullOrEmpty(tijdrit.Beschrijving))
+                                {
+                                    <span>@tijdrit.Beschrijving</span><br />
+                                }
+                                <small class="text-muted">
+                                    @aantalDeelnemers deelnemer(s) - @tijdrit.RondeLengteKm km/ronde
+                                </small>
+                            </p>
+                            <a href="uitslagen/@tijdrit.Id" class="btn btn-primary">
+                                Bekijk uitslagen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+else
+{
+    @* Uitslagen van specifieke tijdrit *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <span class="badge bg-primary fs-6 me-2">@huidigeTijdrit.Datum.ToString("dd MMMM yyyy")</span>
+            @if (!string.IsNullOrEmpty(huidigeTijdrit.Beschrijving))
+            {
+                <span class="text-muted">@huidigeTijdrit.Beschrijving</span>
+            }
+        </div>
+        <div>
+            <button class="btn btn-outline-secondary me-2" @onclick="NaarOverzicht">
+                <i class="bi bi-arrow-left"></i> Terug naar overzicht
+            </button>
+            <button class="btn btn-outline-primary" @onclick="PrintUitslagen">
+                <i class="bi bi-printer"></i> Printen
+            </button>
+        </div>
+    </div>
+
+    @if (!resultaten.Any())
+    {
+        <div class="alert alert-warning">
+            <strong>Geen resultaten!</strong> 
+            <a href="tijdritten/@huidigeTijdrit.Id">Voer eerst passagetijden in</a>.
+        </div>
+    }
+    else
+    {
+        @* Algemene statistieken *@
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0">@resultaten.Count</h3>
+                        <small class="text-muted">Deelnemers</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0">@categorien.Count()</h3>
+                        <small class="text-muted">Categorieen</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="mb-0">@resultatenCompleet.Count()</h3>
+                        <small class="text-muted">Gefinisht</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        @if (snelsteGemiddelde != null)
+                        {
+                            <h3 class="mb-0">@snelsteGemiddelde.Value.ToString("F1") km/u</h3>
+                            <small class="text-muted">Snelste gem.</small>
+                        }
+                        else
+                        {
+                            <h3 class="mb-0">-</h3>
+                            <small class="text-muted">Snelste gem.</small>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Filter op categorie *@
+        <div class="mb-3">
+            <label class="form-label">Filter op categorie:</label>
+            <select class="form-select w-auto d-inline-block" @bind="filterCategorie">
+                <option value="">Alle categorieen</option>
+                @foreach (var cat in categorien)
+                {
+                    <option value="@cat">@cat</option>
+                }
+            </select>
+        </div>
+
+        @* Klassementen per categorie *@
+        @foreach (var categorie in (string.IsNullOrEmpty(filterCategorie) ? categorien : new[] { filterCategorie }))
+        {
+            var categorieResultaten = GetKlassementVoorCategorie(categorie);
+            if (!categorieResultaten.Any()) continue;
+
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-award"></i> @categorie
+                        <span class="badge bg-light text-dark ms-2">@categorieResultaten.Count deelnemers</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">Plaats</th>
+                                <th>Naam</th>
+                                <th>Rondes</th>
+                                <th>Netto tijd</th>
+                                <th>Afstand</th>
+                                <th>Gem. snelheid</th>
+                                <th>Rondetijden</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ var plaats = 0; }
+                            @foreach (var item in categorieResultaten)
+                            {
+                                plaats++;
+                                var isCompleet = item.Resultaat.Passagetijden.Count >= item.Resultaat.AantalRondes;
+
+                                <tr class="@(!isCompleet ? "table-warning" : "")">
+                                    <td>
+                                        @if (plaats == 1)
+                                        {
+                                            <i class="bi bi-1-circle-fill text-warning fs-5"></i>
+                                        }
+                                        else if (plaats == 2)
+                                        {
+                                            <i class="bi bi-2-circle-fill text-secondary fs-5"></i>
+                                        }
+                                        else if (plaats == 3)
+                                        {
+                                            <i class="bi bi-3-circle-fill text-danger fs-5"></i>
+                                        }
+                                        else
+                                        {
+                                            <strong>@plaats.</strong>
+                                        }
+                                    </td>
+                                    <td>@item.Deelnemer.Naam</td>
+                                    <td>@item.Resultaat.AantalRondes</td>
+                                    <td class="font-monospace">
+                                        @if (item.Resultaat.NettoTijd > TimeSpan.Zero)
+                                        {
+                                            <strong>@FormatTijd(item.Resultaat.NettoTijd)</strong>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">DNF</span>
+                                        }
+                                    </td>
+                                    <td>@item.Resultaat.AfstandKm(huidigeTijdrit.RondeLengteKm).ToString("F1") km</td>
+                                    <td>
+                                        @if (item.Resultaat.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm) > 0)
+                                        {
+                                            <span>@item.Resultaat.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm).ToString("F1") km/u</span>
+                                        }
+                                    </td>
+                                    <td class="font-monospace" style="font-size: 0.85rem;">
+                                        @string.Join(" / ", item.Resultaat.Rondetijden.Select(r => FormatRondetijd(r)))
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public string? TijdritIdParam { get; set; }
+
+    private List<Tijdrit> tijdritten = new();
+    private Dictionary<Guid, int> resultatenPerTijdrit = new();
+
+    private Tijdrit? huidigeTijdrit;
+    private List<TijdritResultaat> resultaten = new();
+    private List<Deelnemer> alleDeelnemers = new();
+
+    private string filterCategorie = "";
+
+    private IEnumerable<string> categorien => resultaten
+        .Select(r => alleDeelnemers.FirstOrDefault(d => d.Id == r.DeelnemerId)?.Categorie)
+        .Where(c => !string.IsNullOrEmpty(c))
+        .Distinct()
+        .OrderBy(c => c)!;
+
+    private IEnumerable<TijdritResultaat> resultatenCompleet => 
+        resultaten.Where(r => r.Passagetijden.Count >= r.AantalRondes && r.NettoTijd > TimeSpan.Zero);
+
+    private double? snelsteGemiddelde => resultatenCompleet.Any() && huidigeTijdrit != null
+        ? resultatenCompleet.Max(r => r.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm))
+        : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LaadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reageer op wijzigingen in de URL parameter
+        if (Guid.TryParse(TijdritIdParam, out var tijdritId))
+        {
+            // Alleen laden als het een andere tijdrit is
+            if (huidigeTijdrit?.Id != tijdritId)
+            {
+                var tijdrit = tijdritten.FirstOrDefault(t => t.Id == tijdritId);
+                if (tijdrit != null)
+                {
+                    await SelecteerTijdrit(tijdrit);
+                }
+            }
+        }
+        else
+        {
+            // Geen parameter = terug naar overzicht
+            huidigeTijdrit = null;
+            resultaten.Clear();
+        }
+    }
+
+    private async Task LaadData()
+    {
+        tijdritten = await DataService.GetTijdrittenAsync();
+        alleDeelnemers = await DataService.GetDeelnemersAsync();
+
+        var alleResultaten = await DataService.GetResultatenAsync();
+        resultatenPerTijdrit = alleResultaten
+            .GroupBy(r => r.TijdritId)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private async Task SelecteerTijdrit(Tijdrit tijdrit)
+    {
+        huidigeTijdrit = tijdrit;
+        resultaten = await DataService.GetResultatenVoorTijdritAsync(tijdrit.Id);
+    }
+
+    private List<(TijdritResultaat Resultaat, Deelnemer Deelnemer)> GetKlassementVoorCategorie(string categorie)
+    {
+        return resultaten
+            .Select(r => (Resultaat: r, Deelnemer: alleDeelnemers.FirstOrDefault(d => d.Id == r.DeelnemerId)))
+            .Where(x => x.Deelnemer != null && x.Deelnemer.Categorie == categorie)
+            .OrderBy(x => 
+            {
+                // Eerst: mensen die gefinisht zijn (alle rondes voltooid)
+                var isCompleet = x.Resultaat.Passagetijden.Count >= x.Resultaat.AantalRondes;
+                if (!isCompleet) return TimeSpan.MaxValue;
+
+                // Dan: op netto tijd
+                return x.Resultaat.NettoTijd;
+            })
+            .Select(x => (x.Resultaat, x.Deelnemer!))
+            .ToList();
+    }
+
+    private void NaarOverzicht()
+    {
+        NavigationManager.NavigateTo("/uitslagen");
+    }
+
+    private void PrintUitslagen()
+    {
+        // In een echte app zou je hier JavaScript interop gebruiken
+        // Voor nu gewoon window.print() aanroepen
+    }
+
+    private string FormatTijd(TimeSpan tijd)
+    {
+        if (tijd.TotalHours >= 1)
+            return tijd.ToString(@"h\:mm\:ss\.f");
+        return tijd.ToString(@"mm\:ss\.f");
+    }
+
+    private string FormatTijdKort(TimeSpan tijd)
+    {
+        if (tijd.TotalMinutes >= 10)
+            return tijd.ToString(@"mm\:ss");
+        return tijd.ToString(@"m\:ss\.f");
+    }
+
+    private string FormatRondetijd(TimeSpan tijd)
+    {
+        // Ontbrekende rondetijd (Zero) tonen als streepje
+        if (tijd == TimeSpan.Zero)
+            return "-";
+        if (tijd.TotalMinutes >= 10)
+            return tijd.ToString(@"mm\:ss");
+        return tijd.ToString(@"m\:ss");
+    }
+}

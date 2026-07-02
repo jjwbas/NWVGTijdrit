@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NWVGTijdrit</title>
+    <base href="/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <link href="NWVGTijdrit.styles.css" rel="stylesheet" />
+    <link href="manifest.webmanifest" rel="manifest" />
+    <!-- Chart.js voor progressie grafieken -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <div id="blazor-error-ui" style="display: none;">
+        <div style="background: #dc3545; color: white; padding: 1rem; position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;">
+            <strong>⚠️ Er is een fout opgetreden.</strong>
+            Open de browser console (F12) voor details.
+            <a href="" style="color: white; margin-left: 1rem;">Herladen</a>
+            <a class="dismiss" style="position: absolute; right: 1rem; cursor: pointer;">✕</a>
+        </div>
+    </div>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        navigator.serviceWorker.register('service-worker.js');
+
+        // Toon gedetailleerde fouten in console
+        window.addEventListener('error', function(e) {
+            console.error('Error:', e.message, '\nFile:', e.filename, '\nLine:', e.lineno);
+        });
+
+        // Download functie voor export
+        window.downloadFile = function(fileName, content) {
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        // Progressie grafiek functie
+        let progressChart = null;
+        window.createProgressChart = function(labels, data) {
+            console.log('createProgressChart aangeroepen met:', labels, data);
+
+            const ctx = document.getElementById('progressieGrafiek');
+            if (!ctx) {
+                console.error('Canvas element "progressieGrafiek" niet gevonden!');
+                return;
+            }
+
+            // Check of Chart.js geladen is
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is niet geladen!');
+                return;
+            }
+
+            // Verwijder bestaande grafiek
+            if (progressChart) {
+                progressChart.destroy();
+            }
+
+            try {
+                progressChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Gem. snelheid (km/u)',
+                            data: data,
+                            borderColor: '#C41E3A',
+                            backgroundColor: 'rgba(196, 30, 58, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.3,
+                            pointBackgroundColor: '#C41E3A',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.parsed.y + ' km/u';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: 'km/u'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Datum'
+                                }
+                            }
+                        }
+                    }
+                });
+                console.log('Grafiek succesvol aangemaakt');
+            } catch (e) {
+                console.error('Fout bij aanmaken grafiek:', e);
+            }
+        };
+    </script>
+</body>
+
+</html>
