@@ -207,7 +207,14 @@ else
                                         }
                                     </td>
                                     <td class="font-monospace" style="font-size: 0.85rem;">
-                                        @string.Join(" / ", item.Resultaat.Rondetijden.Select(r => FormatRondetijd(r)))
+                                        @if (item.Resultaat.HeeftEchteRondetijden)
+                                        {
+                                            @string.Join(" / ", item.Resultaat.Rondetijden.Select(r => FormatRondetijd(r)))
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
                                     </td>
                                 </tr>
                             }

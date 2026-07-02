@@ -95,4 +95,10 @@ public class TijdritResultaat
             return rondetijden;
         }
     }
+
+    /// <summary>
+    /// Geeft aan of er echte rondetijden beschikbaar zijn.
+    /// False als er maar 1 passagetijd is voor meerdere rondes (alleen eindtijd bekend).
+    /// </summary>
+    public bool HeeftEchteRondetijden => Passagetijden.Count >= AantalRondes;
 }

@@ -94,24 +94,31 @@ else
                                         }
                                     </td>
                                     <td class="font-monospace" style="font-size: 0.85rem;">
-                                        @for (int i = 0; i < item.Resultaat.Rondetijden.Count; i++)
+                                        @if (item.Resultaat.HeeftEchteRondetijden)
                                         {
-                                            var rondetijd = item.Resultaat.Rondetijden[i];
-
-                                            if (i > 0) { <span class="text-muted mx-1">|</span> }
-
-                                            @if (rondetijd == TimeSpan.Zero)
+                                            @for (int i = 0; i < item.Resultaat.Rondetijden.Count; i++)
                                             {
-                                                <span class="text-muted" title="Ronde @(i + 1) - geen tijd geregistreerd">-</span>
+                                                var rondetijd = item.Resultaat.Rondetijden[i];
+
+                                                if (i > 0) { <span class="text-muted mx-1">|</span> }
+
+                                                @if (rondetijd == TimeSpan.Zero)
+                                                {
+                                                    <span class="text-muted" title="Ronde @(i + 1) - geen tijd geregistreerd">-</span>
+                                                }
+                                                else
+                                                {
+                                                    var snelheidRonde = BerekenRondeSnelheid(rondetijd, item.Tijdrit.RondeLengteKm);
+                                                    <span title="Ronde @(i + 1)">
+                                                        @FormatTijdKort(rondetijd) 
+                                                        <small class="text-muted">(@snelheidRonde.ToString("F1"))</small>
+                                                    </span>
+                                                }
                                             }
-                                            else
-                                            {
-                                                var snelheidRonde = BerekenRondeSnelheid(rondetijd, item.Tijdrit.RondeLengteKm);
-                                                <span title="Ronde @(i + 1)">
-                                                    @FormatTijdKort(rondetijd) 
-                                                    <small class="text-muted">(@snelheidRonde.ToString("F1"))</small>
-                                                </span>
-                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
                                         }
                                     </td>
                                 </tr>

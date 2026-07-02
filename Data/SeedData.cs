@@ -97,7 +97,38 @@ public static class SeedData
     {
         return new List<Tijdrit>
         {
+            // 2024 tijdritten (historisch, alleen eindtijden)
             new() 
+            { 
+                Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+                Datum = new DateTime(2024, 6, 6), 
+                RondeLengteKm = 1.6, 
+                Beschrijving = "Tijdrit 6 juni 2024" 
+            },
+            new() 
+            { 
+                Id = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+                Datum = new DateTime(2024, 7, 4), 
+                RondeLengteKm = 1.6, 
+                Beschrijving = "Tijdrit 4 juli 2024" 
+            },
+            // 2025 tijdritten (historisch, alleen eindtijden)
+            new() 
+            { 
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555555"),
+                Datum = new DateTime(2025, 3, 30), 
+                RondeLengteKm = 1.6, 
+                Beschrijving = "Tijdrit 30 maart 2025" 
+            },
+            new() 
+            { 
+                Id = Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                Datum = new DateTime(2025, 5, 15), 
+                RondeLengteKm = 1.6, 
+                Beschrijving = "Tijdrit 15 mei 2025" 
+            },
+            // 2026 tijdritten (met volledige data)
+            new()
             { 
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 Datum = new DateTime(2026, 3, 31), 
@@ -121,6 +152,48 @@ public static class SeedData
     {
         return new List<SeedResultaat>
         {
+            // ========== TIJDRIT 2024-06-06 ==========
+            // Alleen eindtijden - geen rondetijden bijgehouden
+            RE("33333333-3333-3333-3333-333333333333", 1, "Lies", 2, "5:32"),
+            RE("33333333-3333-3333-3333-333333333333", 2, "Jesper", 2, "6:19"),
+            RE("33333333-3333-3333-3333-333333333333", 3, "Lars", 2, "6:04"),
+            RE("33333333-3333-3333-3333-333333333333", 4, "Neeltje", 2, "7:12"),
+            RE("33333333-3333-3333-3333-333333333333", 5, "Casper", 2, "6:41"),
+
+            // ========== TIJDRIT 2024-07-04 ==========
+            RE("44444444-4444-4444-4444-444444444444", 1, "Lies", 2, "5:12"),
+            RE("44444444-4444-4444-4444-444444444444", 2, "Jesper", 2, "6:04"),
+            RE("44444444-4444-4444-4444-444444444444", 3, "Lars", 2, "6:13"),
+            RE("44444444-4444-4444-4444-444444444444", 4, "Neeltje", 2, "7:53"),
+            RE("44444444-4444-4444-4444-444444444444", 5, "Casper", 2, "6:28"),
+            RE("44444444-4444-4444-4444-444444444444", 6, "Hilene", 2, "6:45"),
+            RE("44444444-4444-4444-4444-444444444444", 7, "Tim", 2, "8:37"),
+            RE("44444444-4444-4444-4444-444444444444", 8, "Mirthe", 2, "9:30"),
+
+            // ========== TIJDRIT 2025-03-30 ==========
+            RE("55555555-5555-5555-5555-555555555555", 1, "Matvii", 4, "11:45"),
+            RE("55555555-5555-5555-5555-555555555555", 2, "Lies", 3, "9:12"),
+            RE("55555555-5555-5555-5555-555555555555", 3, "Jesper", 3, "9:12"),
+            RE("55555555-5555-5555-5555-555555555555", 4, "Lars", 3, "9:26"),
+            RE("55555555-5555-5555-5555-555555555555", 5, "Tobias", 2, "6:19"),
+            RE("55555555-5555-5555-5555-555555555555", 6, "Casper", 2, "6:23"),
+            RE("55555555-5555-5555-5555-555555555555", 7, "Floris", 2, "6:28"),
+            RE("55555555-5555-5555-5555-555555555555", 8, "Hilene", 1, "3:25"),
+            RE("55555555-5555-5555-5555-555555555555", 9, "Amy", 1, "3:44"),
+            RE("55555555-5555-5555-5555-555555555555", 10, "Doris", 1, "4:06"),
+
+            // ========== TIJDRIT 2025-05-15 ==========
+            RE("66666666-6666-6666-6666-666666666666", 1, "Matvii", 3, "8:12"),
+            RE("66666666-6666-6666-6666-666666666666", 2, "Lies", 3, "8:18"),
+            RE("66666666-6666-6666-6666-666666666666", 3, "Jurrian", 3, "8:45"),
+            RE("66666666-6666-6666-6666-666666666666", 4, "Jesper", 3, "9:24"),
+            RE("66666666-6666-6666-6666-666666666666", 5, "Lars", 3, "8:25"),
+            RE("66666666-6666-6666-6666-666666666666", 6, "Floris", 2, "7:24"),
+            RE("66666666-6666-6666-6666-666666666666", 7, "Gijs", 2, "8:25"),
+            RE("66666666-6666-6666-6666-666666666666", 8, "Mirthe", 1, "3:55"),
+            RE("66666666-6666-6666-6666-666666666666", 9, "Doris", 1, "3:37"),
+            RE("66666666-6666-6666-6666-666666666666", 10, "Florian", 1, "3:56"),
+
             // ========== TIJDRIT 1: 31-03-2026 ==========
             // Alleen eindtijden beschikbaar (laatste passage)
 
@@ -202,7 +275,25 @@ public static class SeedData
     }
 
     // Helper methods voor leesbaarheid
-    private static SeedResultaat R(string tijdritId, int volg, string naam, int rondes, string start, string eind)
+
+        /// <summary>
+        /// Resultaat met alleen eindtijd (geen tussenpassages).
+        /// Passagetijden bevat alleen de eindtijd, ook al zijn er meerdere rondes.
+        /// </summary>
+        private static SeedResultaat RE(string tijdritId, int volg, string naam, int rondes, string eind)
+        {
+            return new SeedResultaat
+            {
+                TijdritId = Guid.Parse(tijdritId),
+                Startvolgorde = volg,
+                DeelnemerNaam = naam,
+                AantalRondes = rondes,
+                Starttijd = TimeSpan.Zero,
+                Passagetijden = new List<TimeSpan> { ParseTijd(eind) }
+            };
+        }
+
+        private static SeedResultaat R(string tijdritId, int volg, string naam, int rondes, string start, string eind)
     {
         var passages = new List<TimeSpan>();
         // Vul lege passages tot de eindtijd
