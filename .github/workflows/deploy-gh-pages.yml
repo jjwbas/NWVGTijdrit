@@ -40,12 +40,28 @@ jobs:
       - name: Build and Publish
         run: dotnet publish -c Release -o release
 
+      - name: Debug - Show publish output structure
+        run: |
+          echo "=== Release folder structure ==="
+          find release -type f -name "*.html" -o -name "*.js" | head -30
+          echo "=== Looking for service worker ==="
+          find release -name "service-worker*" 2>/dev/null || echo "No service worker found"
+
       - name: Update base href for GitHub Pages
         run: |
           REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)
+          echo "Repository name: $REPO_NAME"
+
+          # Update base href in index.html
           sed -i "s|<base href=\"/\" />|<base href=\"/${REPO_NAME}/\" />|g" release/wwwroot/index.html
-          # Fix service worker base path
-          sed -i "s|const base = \"/\";|const base = \"/${REPO_NAME}/\";|g" release/wwwroot/service-worker.published.js
+
+          # Fix service worker base path (only if file exists)
+          if [ -f "release/wwwroot/service-worker.published.js" ]; then
+            sed -i "s|const base = \"/\";|const base = \"/${REPO_NAME}/\";|g" release/wwwroot/service-worker.published.js
+            echo "Service worker updated"
+          else
+            echo "No service-worker.published.js found, skipping"
+          fi
 
       - name: Add .nojekyll file
         run: touch release/wwwroot/.nojekyll
