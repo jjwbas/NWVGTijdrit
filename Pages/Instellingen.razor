@@ -106,6 +106,116 @@
     </div>
 </div>
 
+@* Losse tijdrit sectie *@
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="mt-4 mb-3"><i class="bi bi-stopwatch"></i> Losse tijdrit exporteren/importeren</h4>
+    </div>
+
+    @* Losse tijdrit export *@
+    <div class="col-md-6 mb-4">
+        <div class="card h-100 border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-download"></i> Tijdrit exporteren</h5>
+            </div>
+            <div class="card-body">
+                <p>Download één specifieke tijdrit met alle resultaten.</p>
+
+                <div class="mb-3">
+                    <label class="form-label">Selecteer tijdrit:</label>
+                    <select class="form-select" @bind="geselecteerdeTijdritIdVoorExport">
+                        <option value="">-- Kies een tijdrit --</option>
+                        @foreach (var tijdrit in alleTijdritten.OrderByDescending(t => t.Datum))
+                        {
+                            <option value="@tijdrit.Id">@tijdrit.Datum.ToString("dd-MM-yyyy") @(!string.IsNullOrEmpty(tijdrit.Beschrijving) ? $"- {tijdrit.Beschrijving}" : "")</option>
+                        }
+                    </select>
+                </div>
+
+                @if (geselecteerdeTijdritIdVoorExport != Guid.Empty)
+                {
+                    var aantalResultaten = alleResultaten.Count(r => r.TijdritId == geselecteerdeTijdritIdVoorExport);
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Deze tijdrit heeft <strong>@aantalResultaten</strong> resultaten.
+                    </div>
+                }
+
+                <button class="btn btn-info w-100" @onclick="ExporteerLosseTijdrit" 
+                        disabled="@(geselecteerdeTijdritIdVoorExport == Guid.Empty || isExportingTijdrit)">
+                    @if (isExportingTijdrit)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Exporteren...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-download me-2"></i>
+                        <span>Download tijdrit</span>
+                    }
+                </button>
+
+                @if (exportTijdritSucces)
+                {
+                    <div class="alert alert-success mt-3 mb-0">
+                        <i class="bi bi-check-circle"></i> Tijdrit gedownload!
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* Losse tijdrit import *@
+    <div class="col-md-6 mb-4">
+        <div class="card h-100 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-upload"></i> Tijdrit importeren</h5>
+            </div>
+            <div class="card-body">
+                <p>Importeer een losse tijdrit uit een eerder geëxporteerd bestand.</p>
+
+                <div class="mb-3">
+                    <label class="form-label">Selecteer tijdrit bestand:</label>
+                    <InputFile OnChange="OnTijdritFileSelected" class="form-control" accept=".json" />
+                </div>
+
+                @if (tijdritImportFileName != null)
+                {
+                    <div class="alert alert-info">
+                        <strong>Geselecteerd:</strong> @tijdritImportFileName
+                    </div>
+
+                    <button class="btn btn-warning w-100" @onclick="AnalyseerTijdritImport" disabled="@isAnalysingTijdrit">
+                        @if (isAnalysingTijdrit)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Analyseren...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-search me-2"></i>
+                            <span>Analyseer en importeer</span>
+                        }
+                    </button>
+                }
+
+                @if (importTijdritSucces)
+                {
+                    <div class="alert alert-success mt-3 mb-0">
+                        <i class="bi bi-check-circle"></i> Tijdrit succesvol geïmporteerd!
+                    </div>
+                }
+
+                @if (importTijdritError != null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> @importTijdritError
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
 @* Reset sectie *@
 <div class="row">
     <div class="col-12">
@@ -179,6 +289,104 @@
     </div>
 }
 
+@* Modal: Ontbrekende deelnemers bij tijdrit import *@
+@if (toonOntbrekendeDeelnemersModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-warning">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="bi bi-person-exclamation me-2"></i>
+                        Ontbrekende deelnemers gevonden
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => toonOntbrekendeDeelnemersModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>De volgende deelnemers uit de tijdrit bestaan nog niet in de app:</p>
+
+                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                        <table class="table table-sm table-striped">
+                            <thead class="table-warning">
+                                <tr>
+                                    <th>Naam</th>
+                                    <th>Categorie</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var d in ontbrekendeDeelnemers)
+                                {
+                                    <tr>
+                                        <td>@d.Naam</td>
+                                        <td>@d.Categorie</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info mt-3 mb-0">
+                        <strong>Wat wil je doen?</strong>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => toonOntbrekendeDeelnemersModal = false">
+                        <i class="bi bi-x-lg"></i> Annuleren
+                    </button>
+                    <button type="button" class="btn btn-outline-warning" @onclick="ImporteerZonderOntbrekende">
+                        <i class="bi bi-person-dash"></i> Alleen bestaande importeren
+                    </button>
+                    <button type="button" class="btn btn-success" @onclick="ImporteerMetNieuweDeelnemers">
+                        <i class="bi bi-person-plus"></i> Deelnemers aanmaken
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Modal: Duplicaat tijdrit gevonden *@
+@if (toonDuplicaatModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-warning">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Tijdrit bestaat al
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => toonDuplicaatModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Er bestaat al een tijdrit op dezelfde datum:</p>
+
+                    <div class="alert alert-warning">
+                        <strong>@importTijdritData?.Tijdrit?.Datum.ToString("dd-MM-yyyy")</strong>
+                        @if (!string.IsNullOrEmpty(importTijdritData?.Tijdrit?.Beschrijving))
+                        {
+                            <span> - @importTijdritData.Tijdrit.Beschrijving</span>
+                        }
+                    </div>
+
+                    <p><strong>Wat wil je doen?</strong></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => toonDuplicaatModal = false">
+                        <i class="bi bi-x-lg"></i> Annuleren
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="ImporteerAlsNieuweTijdrit">
+                        <i class="bi bi-plus-circle"></i> Als nieuwe tijdrit toevoegen
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="OverschrijfBestaandeTijdrit">
+                        <i class="bi bi-arrow-repeat"></i> Bestaande overschrijven
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private ExportStats? exportStats;
     private bool isExporting = false;
@@ -190,9 +398,31 @@
     private string? selectedFileContent = null;
     private bool toonResetModal = false;
 
+    // Losse tijdrit export
+    private List<Tijdrit> alleTijdritten = new();
+    private List<TijdritResultaat> alleResultaten = new();
+    private List<Deelnemer> alleDeelnemers = new();
+    private Guid geselecteerdeTijdritIdVoorExport = Guid.Empty;
+    private bool isExportingTijdrit = false;
+    private bool exportTijdritSucces = false;
+
+    // Losse tijdrit import
+    private string? tijdritImportFileName = null;
+    private string? tijdritImportFileContent = null;
+    private bool isAnalysingTijdrit = false;
+    private bool importTijdritSucces = false;
+    private string? importTijdritError = null;
+    private TijdritExportData? importTijdritData = null;
+    private List<DeelnemerInfo> ontbrekendeDeelnemers = new();
+    private bool toonOntbrekendeDeelnemersModal = false;
+    private bool toonDuplicaatModal = false;
+    private Tijdrit? bestaandeDuplicaatTijdrit = null;
+    private bool maakOntbrekendeDeelnemersAan = false;
+
     protected override async Task OnInitializedAsync()
     {
         await LaadStats();
+        await LaadTijdrittenVoorExport();
     }
 
     private async Task LaadStats()
@@ -209,6 +439,13 @@
             AantalResultaten = resultaten.Count,
             AantalCategorieen = categorieen.Count
         };
+    }
+
+    private async Task LaadTijdrittenVoorExport()
+    {
+        alleTijdritten = await DataService.GetTijdrittenAsync();
+        alleResultaten = await DataService.GetResultatenAsync();
+        alleDeelnemers = await DataService.GetDeelnemersAsync();
     }
 
     private async Task ExporteerData()
@@ -263,8 +500,6 @@
             if (file != null)
             {
                 selectedFileName = file.Name;
-
-                // Lees bestand (max 10MB)
                 using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
                 using var reader = new StreamReader(stream);
                 selectedFileContent = await reader.ReadToEndAsync();
@@ -299,7 +534,6 @@
                 return;
             }
 
-            // Importeer alle data
             await DataService.ImportDataAsync(
                 importData.Deelnemers ?? new List<Deelnemer>(),
                 importData.Tijdritten ?? new List<Tijdrit>(),
@@ -311,8 +545,8 @@
             selectedFileName = null;
             selectedFileContent = null;
 
-            // Herlaad stats
             await LaadStats();
+            await LaadTijdrittenVoorExport();
         }
         catch (JsonException)
         {
@@ -339,6 +573,302 @@
 
         await DataService.ResetAllDataAsync();
         await LaadStats();
+        await LaadTijdrittenVoorExport();
+    }
+
+    // === Losse tijdrit export ===
+    private async Task ExporteerLosseTijdrit()
+    {
+        if (geselecteerdeTijdritIdVoorExport == Guid.Empty) return;
+
+        isExportingTijdrit = true;
+        exportTijdritSucces = false;
+        StateHasChanged();
+
+        try
+        {
+            var tijdrit = alleTijdritten.FirstOrDefault(t => t.Id == geselecteerdeTijdritIdVoorExport);
+            if (tijdrit == null) return;
+
+            var resultaten = alleResultaten.Where(r => r.TijdritId == tijdrit.Id).ToList();
+
+            // Verzamel deelnemer info voor de resultaten
+            var deelnemerInfos = new List<DeelnemerInfo>();
+            foreach (var resultaat in resultaten)
+            {
+                var deelnemer = alleDeelnemers.FirstOrDefault(d => d.Id == resultaat.DeelnemerId);
+                if (deelnemer != null && !deelnemerInfos.Any(di => di.OrigineleId == deelnemer.Id))
+                {
+                    deelnemerInfos.Add(new DeelnemerInfo
+                    {
+                        OrigineleId = deelnemer.Id,
+                        Naam = deelnemer.Naam,
+                        Categorie = deelnemer.Categorie
+                    });
+                }
+            }
+
+            var exportData = new TijdritExportData
+            {
+                ExportDatum = DateTime.Now,
+                Versie = "1.0",
+                Tijdrit = tijdrit,
+                Resultaten = resultaten,
+                DeelnemerInfos = deelnemerInfos
+            };
+
+            var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions { WriteIndented = true });
+            var beschrijving = !string.IsNullOrEmpty(tijdrit.Beschrijving) ? tijdrit.Beschrijving.Replace(" ", "-") : "tijdrit";
+            var fileName = $"tijdrit-{tijdrit.Datum:yyyy-MM-dd}-{beschrijving}.json";
+
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, json);
+
+            exportTijdritSucces = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Export tijdrit fout: {ex.Message}");
+        }
+        finally
+        {
+            isExportingTijdrit = false;
+        }
+    }
+
+    // === Losse tijdrit import ===
+    private async Task OnTijdritFileSelected(InputFileChangeEventArgs e)
+    {
+        importTijdritSucces = false;
+        importTijdritError = null;
+        tijdritImportFileName = null;
+        tijdritImportFileContent = null;
+
+        try
+        {
+            var file = e.File;
+            if (file != null)
+            {
+                tijdritImportFileName = file.Name;
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                tijdritImportFileContent = await reader.ReadToEndAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            importTijdritError = $"Fout bij lezen bestand: {ex.Message}";
+        }
+    }
+
+    private async Task AnalyseerTijdritImport()
+    {
+        if (string.IsNullOrEmpty(tijdritImportFileContent))
+        {
+            importTijdritError = "Geen bestand geselecteerd.";
+            return;
+        }
+
+        isAnalysingTijdrit = true;
+        importTijdritError = null;
+        StateHasChanged();
+
+        try
+        {
+            importTijdritData = JsonSerializer.Deserialize<TijdritExportData>(tijdritImportFileContent);
+
+            if (importTijdritData?.Tijdrit == null)
+            {
+                importTijdritError = "Ongeldig tijdrit bestand.";
+                return;
+            }
+
+            // Check voor duplicaat tijdrit (zelfde datum)
+            bestaandeDuplicaatTijdrit = alleTijdritten.FirstOrDefault(t => 
+                t.Datum.Date == importTijdritData.Tijdrit.Datum.Date);
+
+            // Check voor ontbrekende deelnemers
+            ontbrekendeDeelnemers.Clear();
+            if (importTijdritData.DeelnemerInfos != null)
+            {
+                foreach (var info in importTijdritData.DeelnemerInfos)
+                {
+                    var bestaand = alleDeelnemers.FirstOrDefault(d => 
+                        d.Naam.Equals(info.Naam, StringComparison.OrdinalIgnoreCase));
+                    if (bestaand == null)
+                    {
+                        ontbrekendeDeelnemers.Add(info);
+                    }
+                }
+            }
+
+            // Toon juiste modal
+            if (ontbrekendeDeelnemers.Any())
+            {
+                toonOntbrekendeDeelnemersModal = true;
+            }
+            else if (bestaandeDuplicaatTijdrit != null)
+            {
+                toonDuplicaatModal = true;
+            }
+            else
+            {
+                await VoerTijdritImportUit(false, false);
+            }
+        }
+        catch (JsonException)
+        {
+            importTijdritError = "Ongeldig JSON formaat. Is dit wel een NWVG Tijdrit export bestand?";
+        }
+        catch (Exception ex)
+        {
+            importTijdritError = $"Analyse fout: {ex.Message}";
+        }
+        finally
+        {
+            isAnalysingTijdrit = false;
+        }
+    }
+
+    private async Task ImporteerZonderOntbrekende()
+    {
+        toonOntbrekendeDeelnemersModal = false;
+        maakOntbrekendeDeelnemersAan = false;
+
+        if (bestaandeDuplicaatTijdrit != null)
+        {
+            toonDuplicaatModal = true;
+        }
+        else
+        {
+            await VoerTijdritImportUit(false, false);
+        }
+    }
+
+    private async Task ImporteerMetNieuweDeelnemers()
+    {
+        toonOntbrekendeDeelnemersModal = false;
+        maakOntbrekendeDeelnemersAan = true;
+
+        if (bestaandeDuplicaatTijdrit != null)
+        {
+            toonDuplicaatModal = true;
+        }
+        else
+        {
+            await VoerTijdritImportUit(true, false);
+        }
+    }
+
+    private async Task ImporteerAlsNieuweTijdrit()
+    {
+        toonDuplicaatModal = false;
+        await VoerTijdritImportUit(maakOntbrekendeDeelnemersAan, false);
+    }
+
+    private async Task OverschrijfBestaandeTijdrit()
+    {
+        toonDuplicaatModal = false;
+        await VoerTijdritImportUit(maakOntbrekendeDeelnemersAan, true);
+    }
+
+    private async Task VoerTijdritImportUit(bool maakDeelnemersAan, bool overschrijf)
+    {
+        if (importTijdritData?.Tijdrit == null) return;
+
+        try
+        {
+            // Stap 1: Maak mapping van oude naar nieuwe deelnemer IDs
+            var idMapping = new Dictionary<Guid, Guid>();
+
+            foreach (var info in importTijdritData.DeelnemerInfos ?? new List<DeelnemerInfo>())
+            {
+                var bestaand = alleDeelnemers.FirstOrDefault(d => 
+                    d.Naam.Equals(info.Naam, StringComparison.OrdinalIgnoreCase));
+
+                if (bestaand != null)
+                {
+                    idMapping[info.OrigineleId] = bestaand.Id;
+                }
+                else if (maakDeelnemersAan)
+                {
+                    // Maak nieuwe deelnemer aan
+                    var nieuweDeelnemer = new Deelnemer
+                    {
+                        Id = Guid.NewGuid(),
+                        Naam = info.Naam,
+                        Categorie = info.Categorie,
+                        StandaardRondes = 1
+                    };
+                    await DataService.SaveDeelnemerAsync(nieuweDeelnemer);
+                    idMapping[info.OrigineleId] = nieuweDeelnemer.Id;
+                    alleDeelnemers.Add(nieuweDeelnemer);
+                }
+            }
+
+            // Stap 2: Verwerk tijdrit
+            Guid nieuweTijdritId;
+
+            if (overschrijf && bestaandeDuplicaatTijdrit != null)
+            {
+                // Verwijder bestaande resultaten
+                var bestaandeResultaten = alleResultaten.Where(r => r.TijdritId == bestaandeDuplicaatTijdrit.Id).ToList();
+                foreach (var r in bestaandeResultaten)
+                {
+                    await DataService.DeleteResultaatAsync(r.Id);
+                }
+
+                // Update tijdrit
+                bestaandeDuplicaatTijdrit.RondeLengteKm = importTijdritData.Tijdrit.RondeLengteKm;
+                bestaandeDuplicaatTijdrit.Beschrijving = importTijdritData.Tijdrit.Beschrijving;
+                await DataService.SaveTijdritAsync(bestaandeDuplicaatTijdrit);
+                nieuweTijdritId = bestaandeDuplicaatTijdrit.Id;
+            }
+            else
+            {
+                // Maak nieuwe tijdrit aan
+                var nieuweTijdrit = new Tijdrit
+                {
+                    Id = Guid.NewGuid(),
+                    Datum = importTijdritData.Tijdrit.Datum,
+                    RondeLengteKm = importTijdritData.Tijdrit.RondeLengteKm,
+                    Beschrijving = importTijdritData.Tijdrit.Beschrijving
+                };
+                await DataService.SaveTijdritAsync(nieuweTijdrit);
+                nieuweTijdritId = nieuweTijdrit.Id;
+            }
+
+            // Stap 3: Importeer resultaten
+            foreach (var resultaat in importTijdritData.Resultaten ?? new List<TijdritResultaat>())
+            {
+                if (idMapping.TryGetValue(resultaat.DeelnemerId, out Guid nieuweDeelnemerId))
+                {
+                    var nieuwResultaat = new TijdritResultaat
+                    {
+                        Id = Guid.NewGuid(),
+                        TijdritId = nieuweTijdritId,
+                        DeelnemerId = nieuweDeelnemerId,
+                        Startvolgorde = resultaat.Startvolgorde,
+                        AantalRondes = resultaat.AantalRondes,
+                        Starttijd = resultaat.Starttijd,
+                        Passagetijden = resultaat.Passagetijden?.ToList() ?? new List<TimeSpan>()
+                    };
+                    await DataService.SaveResultaatAsync(nieuwResultaat);
+                }
+            }
+
+            importTijdritSucces = true;
+            tijdritImportFileName = null;
+            tijdritImportFileContent = null;
+            importTijdritData = null;
+
+            // Herlaad data
+            await LaadStats();
+            await LaadTijdrittenVoorExport();
+        }
+        catch (Exception ex)
+        {
+            importTijdritError = $"Import fout: {ex.Message}";
+        }
     }
 
     private class ExportStats
@@ -357,5 +887,21 @@
         public List<Tijdrit>? Tijdritten { get; set; }
         public List<TijdritResultaat>? Resultaten { get; set; }
         public List<string>? Categorieen { get; set; }
+    }
+
+    private class TijdritExportData
+    {
+        public DateTime ExportDatum { get; set; }
+        public string Versie { get; set; } = "1.0";
+        public Tijdrit? Tijdrit { get; set; }
+        public List<TijdritResultaat>? Resultaten { get; set; }
+        public List<DeelnemerInfo>? DeelnemerInfos { get; set; }
+    }
+
+    private class DeelnemerInfo
+    {
+        public Guid OrigineleId { get; set; }
+        public string Naam { get; set; } = "";
+        public string Categorie { get; set; } = "";
     }
 }
