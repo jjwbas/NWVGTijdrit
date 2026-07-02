@@ -35,17 +35,10 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore NWVGTijdrit.csproj
 
       - name: Build and Publish
-        run: dotnet publish -c Release -o release
-
-      - name: Debug - Show publish output structure
-        run: |
-          echo "=== Release folder structure ==="
-          find release -type f -name "*.html" -o -name "*.js" | head -30
-          echo "=== Looking for service worker ==="
-          find release -name "service-worker*" 2>/dev/null || echo "No service worker found"
+        run: dotnet publish NWVGTijdrit.csproj -c Release -o release
 
       - name: Update base href for GitHub Pages
         run: |
