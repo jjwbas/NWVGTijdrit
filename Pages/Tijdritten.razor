@@ -199,47 +199,16 @@ else
         </button>
     </div>
 
-    <div class="row">
-        @* Linker kolom: Deelnemers toevoegen aan startlijst *@
+    @* Bovenste rij: Stopwatch (sticky) + Deelnemer toevoegen *@
+    <div class="row mb-3">
+        @* Stopwatch - sticky zodat deze altijd zichtbaar blijft *@
         <div class="col-md-4">
-            <div class="card mb-3">
-                <div class="card-header bg-success text-white">
-                    <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Deelnemer toevoegen aan startlijst</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-2">
-                        <label class="form-label">Selecteer deelnemer</label>
-                        <select class="form-select" value="@geselecteerdeDeelnemerId" @onchange="OnDeelnemerGeselecteerd">
-                            <option value="@Guid.Empty">-- Kies een renner --</option>
-                            @foreach (var d in beschikbareDeelnemers)
-                            {
-                                <option value="@d.Id">@d.Naam (@d.Categorie)</option>
-                            }
-                        </select>
-                    </div>
-
-                    @if (geselecteerdeDeelnemerId != Guid.Empty)
-                    {
-                        <div class="mb-2">
-                            <label class="form-label">Aantal rondes</label>
-                            <InputNumber class="form-control" @bind-Value="aantalRondesNieuweDeelnemer" min="1" max="6" />
-                        </div>
-                    }
-
-                    <button class="btn btn-success w-100" @onclick="VoegDeelnemerToe" 
-                            disabled="@(geselecteerdeDeelnemerId == Guid.Empty)">
-                        Toevoegen aan startlijst
-                    </button>
-                </div>
-            </div>
-
-            @* Stopwatch simulatie *@
-            <div class="card">
+            <div class="card position-sticky" style="top: 10px; z-index: 100;">
                 <div class="card-header bg-dark text-white">
                     <h6 class="mb-0"><i class="bi bi-stopwatch"></i> Stopwatch</h6>
                 </div>
-                <div class="card-body text-center">
-                    <div class="display-4 font-monospace mb-3">
+                <div class="card-body text-center py-2">
+                    <div class="display-4 font-monospace mb-2">
                         @FormatTijd(stopwatchTijd)
                     </div>
                     <div class="btn-group w-100">
@@ -259,109 +228,138 @@ else
                             <i class="bi bi-arrow-counterclockwise"></i> Reset
                         </button>
                     </div>
-                    <div class="form-text mt-2">
-                        Of voer handmatig een tijd in bij de passage
+                </div>
+            </div>
+        </div>
+
+        @* Deelnemer toevoegen aan startlijst *@
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Deelnemer toevoegen aan startlijst</h6>
+                </div>
+                <div class="card-body py-2">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label mb-1">Selecteer deelnemer</label>
+                            <select class="form-select" value="@geselecteerdeDeelnemerId" @onchange="OnDeelnemerGeselecteerd">
+                                <option value="@Guid.Empty">-- Kies een renner --</option>
+                                @foreach (var d in beschikbareDeelnemers)
+                                {
+                                    <option value="@d.Id">@d.Naam (@d.Categorie)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label mb-1">Aantal rondes</label>
+                            <InputNumber class="form-control" @bind-Value="aantalRondesNieuweDeelnemer" min="1" max="6" 
+                                         disabled="@(geselecteerdeDeelnemerId == Guid.Empty)" />
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-success w-100" @onclick="VoegDeelnemerToe" 
+                                    disabled="@(geselecteerdeDeelnemerId == Guid.Empty)">
+                                <i class="bi bi-plus-lg"></i> Toevoegen aan startlijst
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        @* Rechter kolom: Startlijst met passage-invoer *@
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0"><i class="bi bi-list-ol"></i> Startlijst (@resultaten.Count deelnemers)</h6>
+    @* Startlijst over de hele breedte *@
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="bi bi-list-ol"></i> Startlijst (@resultaten.Count deelnemers)</h6>
+        </div>
+        <div class="card-body p-0">
+            @if (!resultaten.Any())
+            {
+                <div class="alert alert-info m-3">
+                    Voeg deelnemers toe aan de startlijst via het formulier hierboven.
                 </div>
-                <div class="card-body p-0">
-                    @if (!resultaten.Any())
-                    {
-                        <div class="alert alert-info m-3">
-                            Voeg deelnemers toe aan de startlijst via het formulier links.
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th style="width: 40px;">#</th>
-                                        <th>Naam</th>
-                                        <th style="width: 80px;">Start</th>
-                                        <th>Passages</th>
-                                        <th style="width: 100px;">Netto</th>
-                                        <th style="width: 50px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var resultaat in resultaten.OrderBy(r => r.Startvolgorde))
-                                    {
-                                        var deelnemer = alleDeelnemers.FirstOrDefault(d => d.Id == resultaat.DeelnemerId);
-                                        var isCompleet = resultaat.Passagetijden.Count >= resultaat.AantalRondes;
-                                        <tr class="@(isCompleet ? "table-success" : "")">
-                                            <td><strong>@resultaat.Startvolgorde</strong></td>
-                                            <td>
-                                                @(deelnemer?.Naam ?? "?")
-                                                <br /><small class="text-muted">@(deelnemer?.Categorie) - @resultaat.AantalRondes ronde(s)</small>
-                                            </td>
-                                            <td>
-                                                <input type="text" class="form-control form-control-sm font-monospace" 
-                                                       value="@FormatTijd(resultaat.Starttijd)"
-                                                       @onchange="e => UpdateStarttijd(resultaat, e.Value?.ToString())"
-                                                       style="width: 80px;" />
-                                            </td>
-                                            <td>
-                                                <div class="d-flex flex-wrap gap-1">
-                                                    @for (int i = 0; i < resultaat.AantalRondes; i++)
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Naam</th>
+                                <th style="width: 80px;">Start</th>
+                                <th>Passages</th>
+                                <th style="width: 100px;">Netto</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var resultaat in resultaten.OrderBy(r => r.Startvolgorde))
+                            {
+                                var deelnemer = alleDeelnemers.FirstOrDefault(d => d.Id == resultaat.DeelnemerId);
+                                var isCompleet = resultaat.Passagetijden.Count >= resultaat.AantalRondes;
+                                <tr class="@(isCompleet ? "table-success" : "")">
+                                    <td><strong>@resultaat.Startvolgorde</strong></td>
+                                    <td>
+                                        @(deelnemer?.Naam ?? "?")
+                                        <br /><small class="text-muted">@(deelnemer?.Categorie) - @resultaat.AantalRondes ronde(s)</small>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm font-monospace" 
+                                               value="@FormatTijd(resultaat.Starttijd)"
+                                               @onchange="e => UpdateStarttijd(resultaat, e.Value?.ToString())"
+                                               style="width: 80px;" />
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @for (int i = 0; i < resultaat.AantalRondes; i++)
+                                            {
+                                                var rondeNr = i;
+                                                var heeftPassage = i < resultaat.Passagetijden.Count;
+                                                <div class="input-group input-group-sm" style="width: 110px;">
+                                                    <span class="input-group-text p-1">@(i + 1)</span>
+                                                    @if (heeftPassage)
                                                     {
-                                                        var rondeNr = i;
-                                                        var heeftPassage = i < resultaat.Passagetijden.Count;
-                                                        <div class="input-group input-group-sm" style="width: 110px;">
-                                                            <span class="input-group-text p-1">@(i + 1)</span>
-                                                            @if (heeftPassage)
-                                                            {
-                                                                <input type="text" class="form-control font-monospace p-1" 
-                                                                       value="@FormatTijd(resultaat.Passagetijden[i])"
-                                                                       @onchange="e => UpdatePassage(resultaat, rondeNr, e.Value?.ToString())"
-                                                                       style="font-size: 0.8rem;" />
-                                                            }
-                                                            else
-                                                            {
-                                                                <button class="btn btn-outline-primary btn-sm" 
-                                                                        @onclick="() => RegistreerPassage(resultaat)"
-                                                                        title="Klik om huidige stopwatch-tijd te registreren">
-                                                                    <i class="bi bi-geo-alt"></i>
-                                                                </button>
-                                                            }
+                                                        <input type="text" class="form-control font-monospace p-1" 
+                                                               value="@FormatTijd(resultaat.Passagetijden[i])"
+                                                               @onchange="e => UpdatePassage(resultaat, rondeNr, e.Value?.ToString())"
+                                                               style="font-size: 0.8rem;" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <button class="btn btn-outline-primary btn-sm" 
+                                                                @onclick="() => RegistreerPassage(resultaat)"
+                                                                title="Klik om huidige stopwatch-tijd te registreren">
+                                                            <i class="bi bi-geo-alt"></i>
+                                                        </button>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="font-monospace">
+                                        @if (resultaat.NettoTijd > TimeSpan.Zero)
+                                        {
+                                            <strong>@FormatTijd(resultaat.NettoTijd)</strong>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                @onclick="() => VerwijderResultaat(resultaat)" title="Verwijderen">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                        </tr>
+                                                                    }
+                                                                </tbody>
+                                                            </table>
                                                         </div>
                                                     }
                                                 </div>
-                                            </td>
-                                            <td class="font-monospace">
-                                                @if (resultaat.NettoTijd > TimeSpan.Zero)
-                                                {
-                                                    <strong>@FormatTijd(resultaat.NettoTijd)</strong>
-                                                }
-                                            </td>
-                                            <td>
-                                                <button class="btn btn-sm btn-outline-danger" 
-                                                        @onclick="() => VerwijderResultaat(resultaat)" title="Verwijderen">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
-}
+                                            </div>
+                                        }
 
-@code {
+                                        @code {
     [Parameter]
     public string? TijdritIdParam { get; set; }
 
