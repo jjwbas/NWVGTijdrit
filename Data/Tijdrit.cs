@@ -12,8 +12,11 @@ public class Tijdrit
     /// <summary>Datum waarop de tijdrit plaatsvindt</summary>
     public DateTime Datum { get; set; } = DateTime.Today;
 
-    /// <summary>Lengte van één ronde in kilometers (standaard 1.6 km)</summary>
+    /// <summary>Lengte van Ã©Ã©n ronde in kilometers (standaard 1.6 km)</summary>
     public double RondeLengteKm { get; set; } = 1.6;
+
+    /// <summary>Interval tussen starters in seconden (standaard 30, minimum 11)</summary>
+    public int StartIntervalSeconden { get; set; } = 30;
 
     /// <summary>Optionele beschrijving van de tijdrit</summary>
     public string? Beschrijving { get; set; }

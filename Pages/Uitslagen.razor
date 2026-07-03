@@ -124,105 +124,124 @@ else
         </div>
 
         @* Filter op categorie *@
-        <div class="mb-3">
-            <label class="form-label">Filter op categorie:</label>
-            <select class="form-select w-auto d-inline-block" @bind="filterCategorie">
-                <option value="">Alle categorieen</option>
-                @foreach (var cat in categorien)
-                {
-                    <option value="@cat">@cat</option>
-                }
-            </select>
+        <div class="mb-3 d-flex gap-3 align-items-center">
+            <div>
+                <label class="form-label mb-0 me-2">Filter op categorie:</label>
+                <select class="form-select form-select-sm w-auto d-inline-block" value="@filterCategorie" @onchange="OnCategorieFilterChanged">
+                    <option value="">Alle categorieën</option>
+                    @foreach (var cat in categorien)
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
+            </div>
         </div>
 
-        @* Klassementen per categorie *@
-        @foreach (var categorie in (string.IsNullOrEmpty(filterCategorie) ? categorien : new[] { filterCategorie }))
-        {
-            var categorieResultaten = GetKlassementVoorCategorie(categorie);
-            if (!categorieResultaten.Any()) continue;
-
-            <div class="card mb-4">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-award"></i> @categorie
-                        <span class="badge bg-light text-dark ms-2">@categorieResultaten.Count deelnemers</span>
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <table class="table table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 60px;">Plaats</th>
-                                <th>Naam</th>
-                                <th>Rondes</th>
-                                <th>Netto tijd</th>
-                                <th>Afstand</th>
-                                <th>Gem. snelheid</th>
-                                <th>Rondetijden</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @{ var plaats = 0; }
-                            @foreach (var item in categorieResultaten)
-                            {
-                                plaats++;
-                                var isCompleet = item.Resultaat.Passagetijden.Count >= item.Resultaat.AantalRondes;
-
-                                <tr class="@(!isCompleet ? "table-warning" : "")">
-                                    <td>
-                                        @if (plaats == 1)
-                                        {
-                                            <i class="bi bi-1-circle-fill text-warning fs-5"></i>
-                                        }
-                                        else if (plaats == 2)
-                                        {
-                                            <i class="bi bi-2-circle-fill text-secondary fs-5"></i>
-                                        }
-                                        else if (plaats == 3)
-                                        {
-                                            <i class="bi bi-3-circle-fill text-danger fs-5"></i>
-                                        }
-                                        else
-                                        {
-                                            <strong>@plaats.</strong>
-                                        }
-                                    </td>
-                                    <td>@item.Deelnemer.Naam</td>
-                                    <td>@item.Resultaat.AantalRondes</td>
-                                    <td class="font-monospace">
-                                        @if (item.Resultaat.NettoTijd > TimeSpan.Zero)
-                                        {
-                                            <strong>@FormatTijd(item.Resultaat.NettoTijd)</strong>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">DNF</span>
-                                        }
-                                    </td>
-                                    <td>@item.Resultaat.AfstandKm(huidigeTijdrit.RondeLengteKm).ToString("F1") km</td>
-                                    <td>
-                                        @if (item.Resultaat.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm) > 0)
-                                        {
-                                            <span>@item.Resultaat.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm).ToString("F1") km/u</span>
-                                        }
-                                    </td>
-                                    <td class="font-monospace" style="font-size: 0.85rem;">
-                                        @if (item.Resultaat.HeeftEchteRondetijden)
-                                        {
-                                            @string.Join(" / ", item.Resultaat.Rondetijden.Select(r => FormatRondetijd(r)))
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+        @* Één grote resultatenlijst *@
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ol"></i> Resultaten
+                    @if (!string.IsNullOrEmpty(filterCategorie))
+                    {
+                        <span class="badge bg-info ms-2">@filterCategorie</span>
+                    }
+                    <span class="badge bg-light text-dark ms-2">@gefilterdeResultaten.Count() deelnemers</span>
+                </h5>
             </div>
-        }
+            <div class="card-body p-0">
+                <table class="table table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            @if (string.IsNullOrEmpty(filterCategorie))
+                            {
+                                <th style="width: 70px; cursor: pointer;" @onclick="() => SorteerOp(SorteerKolom.Startnr)">
+                                    Startnr @SorteerIndicator(SorteerKolom.Startnr)
+                                </th>
+                            }
+                            else
+                            {
+                                <th style="width: 70px; cursor: pointer;" @onclick="() => SorteerOp(SorteerKolom.Plaats)">
+                                    Plaats @SorteerIndicator(SorteerKolom.Plaats)
+                                </th>
+                            }
+                            <th style="cursor: pointer;" @onclick="() => SorteerOp(SorteerKolom.Naam)">
+                                Naam @SorteerIndicator(SorteerKolom.Naam)
+                            </th>
+                            @if (string.IsNullOrEmpty(filterCategorie))
+                            {
+                                <th style="cursor: pointer;" @onclick="() => SorteerOp(SorteerKolom.Categorie)">
+                                    Categorie @SorteerIndicator(SorteerKolom.Categorie)
+                                </th>
+                            }
+                            <th style="width: 80px; cursor: pointer;" @onclick="() => SorteerOp(SorteerKolom.Rondes)">
+                                Rondes @SorteerIndicator(SorteerKolom.Rondes)
+                            </th>
+                            <th style="cursor: pointer;" @onclick="() => SorteerOp(SorteerKolom.Tijd)">
+                                Netto tijd @SorteerIndicator(SorteerKolom.Tijd)
+                            </th>
+                            <th>Afstand</th>
+                            <th style="cursor: pointer;" @onclick="() => SorteerOp(SorteerKolom.Snelheid)">
+                                Gem. snelheid @SorteerIndicator(SorteerKolom.Snelheid)
+                            </th>
+                            <th>Rondetijden</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var plaats = 0; }
+                        @foreach (var item in gesorteerdeResultaten)
+                        {
+                            plaats++;
+                            var isCompleet = item.Resultaat.Passagetijden.Count >= item.Resultaat.AantalRondes;
+
+                            <tr class="@(!isCompleet ? "table-warning" : "")">
+                                @if (string.IsNullOrEmpty(filterCategorie))
+                                {
+                                    <td><strong>@item.Resultaat.Startvolgorde</strong></td>
+                                }
+                                else
+                                {
+                                    <td><strong>@plaats.</strong></td>
+                                }
+                                <td>@item.Deelnemer.Naam</td>
+                                @if (string.IsNullOrEmpty(filterCategorie))
+                                {
+                                    <td><span class="badge bg-secondary">@item.Deelnemer.Categorie</span></td>
+                                }
+                                <td>@item.Resultaat.AantalRondes</td>
+                                <td class="font-monospace">
+                                    @if (item.Resultaat.NettoTijd > TimeSpan.Zero)
+                                    {
+                                        <strong>@FormatTijd(item.Resultaat.NettoTijd)</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">DNF</span>
+                                    }
+                                </td>
+                                <td>@item.Resultaat.AfstandKm(huidigeTijdrit.RondeLengteKm).ToString("F1") km</td>
+                                <td>
+                                    @if (item.Resultaat.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm) > 0)
+                                    {
+                                        <span>@item.Resultaat.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm).ToString("F1") km/u</span>
+                                    }
+                                </td>
+                                <td class="font-monospace" style="font-size: 0.85rem;">
+                                    @if (item.Resultaat.HeeftEchteRondetijden)
+                                    {
+                                        @string.Join(" / ", item.Resultaat.Rondetijden.Select(r => FormatRondetijd(r)))
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
     }
 }
 
@@ -239,6 +258,12 @@ else
 
     private string filterCategorie = "";
 
+    // Sortering
+    private SorteerKolom huidigeSortering = SorteerKolom.Startnr;
+    private bool sorteerOplopend = true;
+
+    private enum SorteerKolom { Startnr, Plaats, Naam, Categorie, Rondes, Tijd, Snelheid }
+
     private IEnumerable<string> categorien => resultaten
         .Select(r => alleDeelnemers.FirstOrDefault(d => d.Id == r.DeelnemerId)?.Categorie)
         .Where(c => !string.IsNullOrEmpty(c))
@@ -251,6 +276,84 @@ else
     private double? snelsteGemiddelde => resultatenCompleet.Any() && huidigeTijdrit != null
         ? resultatenCompleet.Max(r => r.GemiddeldeSnelheid(huidigeTijdrit.RondeLengteKm))
         : null;
+
+    // Gefilterde resultaten (op categorie)
+    private IEnumerable<(TijdritResultaat Resultaat, Deelnemer Deelnemer)> gefilterdeResultaten =>
+        resultaten
+            .Select(r => (Resultaat: r, Deelnemer: alleDeelnemers.FirstOrDefault(d => d.Id == r.DeelnemerId)))
+            .Where(x => x.Deelnemer != null)
+            .Where(x => string.IsNullOrEmpty(filterCategorie) || x.Deelnemer!.Categorie == filterCategorie)
+            .Select(x => (x.Resultaat, x.Deelnemer!));
+
+    // Gesorteerde resultaten
+    private IEnumerable<(TijdritResultaat Resultaat, Deelnemer Deelnemer)> gesorteerdeResultaten
+    {
+        get
+        {
+            var data = gefilterdeResultaten;
+
+            IOrderedEnumerable<(TijdritResultaat Resultaat, Deelnemer Deelnemer)> sorted = huidigeSortering switch
+            {
+                SorteerKolom.Startnr => sorteerOplopend 
+                    ? data.OrderBy(x => x.Resultaat.Startvolgorde)
+                    : data.OrderByDescending(x => x.Resultaat.Startvolgorde),
+
+                SorteerKolom.Naam => sorteerOplopend 
+                    ? data.OrderBy(x => x.Deelnemer.Naam)
+                    : data.OrderByDescending(x => x.Deelnemer.Naam),
+
+                SorteerKolom.Categorie => sorteerOplopend 
+                    ? data.OrderBy(x => x.Deelnemer.Categorie)
+                    : data.OrderByDescending(x => x.Deelnemer.Categorie),
+
+                SorteerKolom.Rondes => sorteerOplopend 
+                    ? data.OrderBy(x => x.Resultaat.AantalRondes)
+                    : data.OrderByDescending(x => x.Resultaat.AantalRondes),
+
+                SorteerKolom.Tijd => sorteerOplopend 
+                    ? data.OrderBy(x => x.Resultaat.NettoTijd > TimeSpan.Zero ? x.Resultaat.NettoTijd : TimeSpan.MaxValue)
+                    : data.OrderByDescending(x => x.Resultaat.NettoTijd),
+
+                SorteerKolom.Snelheid => sorteerOplopend 
+                    ? data.OrderBy(x => x.Resultaat.GemiddeldeSnelheid(huidigeTijdrit?.RondeLengteKm ?? 1.6))
+                    : data.OrderByDescending(x => x.Resultaat.GemiddeldeSnelheid(huidigeTijdrit?.RondeLengteKm ?? 1.6)),
+
+                // Plaats = sortering op klassement: eerst gefinisht, dan op netto tijd
+                _ => sorteerOplopend 
+                    ? data.OrderBy(x => 
+                    {
+                        var isCompleet = x.Resultaat.Passagetijden.Count >= x.Resultaat.AantalRondes;
+                        if (!isCompleet) return TimeSpan.MaxValue;
+                        return x.Resultaat.NettoTijd;
+                    })
+                    : data.OrderByDescending(x => x.Resultaat.NettoTijd)
+            };
+
+            return sorted;
+        }
+    }
+
+    private void SorteerOp(SorteerKolom kolom)
+    {
+        if (huidigeSortering == kolom)
+        {
+            // Zelfde kolom: toggle richting
+            sorteerOplopend = !sorteerOplopend;
+        }
+        else
+        {
+            // Andere kolom: nieuwe sortering, default richting
+            huidigeSortering = kolom;
+            // Voor snelheid default aflopend (snelste eerst), rest oplopend
+            sorteerOplopend = kolom != SorteerKolom.Snelheid;
+        }
+    }
+
+    private string SorteerIndicator(SorteerKolom kolom)
+    {
+        if (huidigeSortering != kolom) return "";
+        return sorteerOplopend ? "▲" : "▼";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -295,29 +398,33 @@ else
     {
         huidigeTijdrit = tijdrit;
         resultaten = await DataService.GetResultatenVoorTijdritAsync(tijdrit.Id);
-    }
-
-    private List<(TijdritResultaat Resultaat, Deelnemer Deelnemer)> GetKlassementVoorCategorie(string categorie)
-    {
-        return resultaten
-            .Select(r => (Resultaat: r, Deelnemer: alleDeelnemers.FirstOrDefault(d => d.Id == r.DeelnemerId)))
-            .Where(x => x.Deelnemer != null && x.Deelnemer.Categorie == categorie)
-            .OrderBy(x => 
-            {
-                // Eerst: mensen die gefinisht zijn (alle rondes voltooid)
-                var isCompleet = x.Resultaat.Passagetijden.Count >= x.Resultaat.AantalRondes;
-                if (!isCompleet) return TimeSpan.MaxValue;
-
-                // Dan: op netto tijd
-                return x.Resultaat.NettoTijd;
-            })
-            .Select(x => (x.Resultaat, x.Deelnemer!))
-            .ToList();
+        // Reset sortering bij nieuwe tijdrit (default = startnummer)
+        huidigeSortering = SorteerKolom.Startnr;
+        sorteerOplopend = true;
+        filterCategorie = "";
     }
 
     private void NaarOverzicht()
     {
         NavigationManager.NavigateTo("/uitslagen");
+    }
+
+    private void OnCategorieFilterChanged(ChangeEventArgs e)
+    {
+        filterCategorie = e.Value?.ToString() ?? "";
+
+        // Bij selectie van een categorie: sorteer automatisch op snelste tijd (Plaats)
+        if (!string.IsNullOrEmpty(filterCategorie))
+        {
+            huidigeSortering = SorteerKolom.Plaats;
+            sorteerOplopend = true;
+        }
+        else
+        {
+            // Terug naar alle categorieën: reset naar startnummer
+            huidigeSortering = SorteerKolom.Startnr;
+            sorteerOplopend = true;
+        }
     }
 
     private void PrintUitslagen()
